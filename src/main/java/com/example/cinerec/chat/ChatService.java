@@ -12,16 +12,20 @@ import com.example.cinerec.service.Recommendation;
 import com.example.cinerec.service.RecommendationService;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Логика чат-бота. По сообщению пользователя определяет:
  * - настроение — моделью для чата (если она уверена хотя бы на MOOD_THRESHOLD);
- * - жанр и тип — по основе слова из таблиц genre и type («комедию» → комедия);
+ * - жанр и тип — по словам из KEYWORDS или по основе слова из таблиц genre и type («комедию» → комедия);
+ * - что смотреть НЕ нужно — жанры и типы с отрицанием перед ними («только не ужасы»);
  * затем подбирает фильмы через RecommendationService и собирает ответ по шаблону.
  */
 @Service
@@ -36,14 +40,41 @@ public class ChatService {
     static final double MOOD_THRESHOLD = 0.5;
     static final int MAX_MOVIES = 5;
 
-    // Основа слова — название без двух последних букв, но не короче 4 букв:
-    // «комедия» → «комед» (подходит «комедию»), «ужасы» → «ужас» (подходит «ужастик»).
+    // Начала слов, по которым узнаются жанры и типы из начальных данных:
+    // «фантастический» → фантастика, «мультик» → мультфильм, «про войну» → военный.
+    // Отдельные списки нужны, потому что основа слова то ловит лишнее («ужасно» → ужасы),
+    // то пропускает нужное («приключенческий» не начинается с «приключени»).
+    private static final Map<String, List<String>> KEYWORDS = Map.ofEntries(
+            Map.entry("драма", List.of("драм")),
+            Map.entry("комедия", List.of("комед")),
+            Map.entry("боевик", List.of("боевик", "экшн", "экшен")),
+            Map.entry("триллер", List.of("триллер", "трилер")),
+            Map.entry("фантастика", List.of("фантаст")),
+            Map.entry("фэнтези", List.of("фэнтез", "фентез")),
+            Map.entry("ужасы", List.of("ужасы", "ужасов", "ужасам", "ужасах", "ужастик", "хоррор")),
+            Map.entry("мелодрама", List.of("мелодрам")),
+            Map.entry("приключения", List.of("приключен")),
+            Map.entry("детектив", List.of("детектив")),
+            Map.entry("криминал", List.of("криминал")),
+            Map.entry("семейный", List.of("семейн")),
+            Map.entry("исторический", List.of("историческ")),
+            Map.entry("военный", List.of("военн", "войн")),
+            Map.entry("биография", List.of("биограф")),
+            Map.entry("мюзикл", List.of("мюзикл")),
+            Map.entry("фильм", List.of("фильм")),
+            Map.entry("сериал", List.of("сериал")),
+            Map.entry("мультфильм", List.of("мульт")));
+
+    // Названия, которых нет в KEYWORDS (например, новый жанр из админки), ищутся по основе слова:
+    // название без двух последних букв, но не короче 4 букв («вестерн» → «весте», подходит «вестерны»).
     private static final int MIN_STEM_LENGTH = 4;
 
-    // Разговорные слова, которые не начинаются с основы названия: «мультик» → мультфильм
-    private static final Map<String, String> SLANG = Map.of(
-            "мульт", "мультфильм",
-            "хоррор", "ужасы");
+    // Отрицание прямо перед словом («не ужасы», «без мультиков») или через глагол («не хочу ужасы»).
+    // Через другие слова отрицание не действует: в «не грустную комедию» комедия нужна.
+    private static final Set<String> NEGATIONS = Set.of("не", "без", "кроме");
+    private static final Set<String> NEGATED_VERBS = Set.of(
+            "хочу", "хочется", "надо", "нужно", "нужен", "нужны", "люблю", "нравится", "нравятся",
+            "показывай", "предлагай", "советуй", "смотреть");
 
     private static final Set<String> GREETING_WORDS = Set.of(
             "привет", "приветик", "приветствую", "здравствуй", "здравствуйте", "здрасте",
@@ -98,10 +129,20 @@ public class ChatService {
         MoodSuggestion mood = moodPredictor.predict(message)
                 .filter(p -> p.probability() >= MOOD_THRESHOLD)
                 .orElse(null);
-        Genre genre = findInMessage(words, genreRepository.findAll(), Genre::getName);
-        MovieType type = findInMessage(words, typeRepository.findAll(), MovieType::getName);
+        Mentions<Genre> genres = findInMessage(words, genreRepository.findAll(), Genre::getName);
+        Mentions<MovieType> types = findInMessage(words, typeRepository.findAll(), MovieType::getName);
+        Genre genre = genres.wanted();
+        MovieType type = types.wanted();
+        String excluded = Stream.concat(
+                        genres.excluded().stream().map(Genre::getName),
+                        types.excluded().stream().map(MovieType::getName))
+                .collect(Collectors.joining(", "));
 
         if (mood == null && genre == null && type == null) {
+            if (!excluded.isEmpty()) {
+                return ChatReply.textOnly("Понял, что не хотите: " + excluded
+                        + ". А что хочется посмотреть? " + EXAMPLES);
+            }
             return ChatReply.textOnly("Не совсем понял, что вам хочется посмотреть. Опишите иначе. " + EXAMPLES);
         }
 
@@ -116,6 +157,9 @@ public class ChatService {
                 : mood.mood() + " (уверенность " + mood.percent() + "%)").append('\n');
         text.append("• жанр: ").append(genre == null ? "любой" : genre.getName()).append('\n');
         text.append("• тип: ").append(type == null ? "любой" : type.getName()).append('\n');
+        if (!excluded.isEmpty()) {
+            text.append("• кроме: ").append(excluded).append('\n');
+        }
 
         if (mood != null && moodInDb == null) {
             text.append("Настроения «").append(mood.mood())
@@ -130,7 +174,9 @@ public class ChatService {
         List<Recommendation> recommendations = recommendationService.recommend(
                 moodInDb == null ? null : moodInDb.getId(),
                 genre == null ? null : genre.getId(),
-                type == null ? null : type.getId());
+                type == null ? null : type.getId(),
+                genres.excluded().stream().map(Genre::getId).collect(Collectors.toSet()),
+                types.excluded().stream().map(MovieType::getId).collect(Collectors.toSet()));
         List<ChatMovie> movies = recommendations.stream()
                 .limit(MAX_MOVIES)
                 .map(r -> ChatMovie.from(r.movie()))
@@ -151,25 +197,53 @@ public class ChatService {
                 .toList();
     }
 
+    /** Что нашлось в сообщении: нужная запись (или null) и записи с отрицанием перед ними. */
+    record Mentions<T>(T wanted, List<T> excluded) {
+    }
+
     /**
-     * Первое слово сообщения, которое начинается с основы названия из справочника
-     * (или является разговорным вариантом из SLANG). Возвращает найденную запись или null.
+     * Ищет в сообщении записи справочника. Нужная — первая найденная без отрицания перед ней,
+     * исключённые — все найденные с отрицанием («только не ужасы», «без мультиков»).
      */
-    static <T> T findInMessage(List<String> words, List<T> items, Function<T, String> nameOf) {
-        for (String word : words) {
-            String slangName = SLANG.entrySet().stream()
-                    .filter(e -> word.startsWith(e.getKey()))
-                    .map(Map.Entry::getValue)
+    static <T> Mentions<T> findInMessage(List<String> words, List<T> items, Function<T, String> nameOf) {
+        T wanted = null;
+        List<T> excluded = new ArrayList<>();
+        for (int i = 0; i < words.size(); i++) {
+            String word = words.get(i);
+            T item = items.stream()
+                    .filter(it -> matches(word, normalize(nameOf.apply(it))))
                     .findFirst()
                     .orElse(null);
-            for (T item : items) {
-                String name = normalize(nameOf.apply(item));
-                if (word.startsWith(stem(name)) || name.equals(slangName)) {
-                    return item;
+            if (item == null) {
+                continue;
+            }
+            if (isNegated(words, i)) {
+                if (!excluded.contains(item)) {
+                    excluded.add(item);
                 }
+            } else if (wanted == null) {
+                wanted = item;
             }
         }
-        return null;
+        // «ужасы? нет, только не ужасы» — отрицание важнее
+        if (excluded.contains(wanted)) {
+            wanted = null;
+        }
+        return new Mentions<>(wanted, excluded);
+    }
+
+    /** Подходит ли слово к названию: по словам из KEYWORDS, а если названия там нет — по основе. */
+    static boolean matches(String word, String name) {
+        return KEYWORDS.getOrDefault(name, List.of(stem(name))).stream().anyMatch(word::startsWith);
+    }
+
+    /** Стоит ли перед словом отрицание: «не ужасы» или «не хочу ужасы». */
+    static boolean isNegated(List<String> words, int index) {
+        if (index >= 1 && NEGATIONS.contains(words.get(index - 1))) {
+            return true;
+        }
+        return index >= 2 && NEGATED_VERBS.contains(words.get(index - 1))
+                && NEGATIONS.contains(words.get(index - 2));
     }
 
     static String stem(String name) {

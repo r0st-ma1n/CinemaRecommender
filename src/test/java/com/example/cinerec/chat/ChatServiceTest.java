@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +32,7 @@ class ChatServiceTest {
 
     private static final long FUNNY = 1L, SAD = 2L;          // настроения в «базе»
     private static final long COMEDY = 10L, HORROR = 11L, HISTORY = 12L; // жанры
+    private static final long SCI_FI = 13L, ADVENTURE = 14L, WESTERN = 15L;
     private static final long FILM = 20L, CARTOON = 21L;     // типы
 
     private final ChatMoodPredictor predictor = mock(ChatMoodPredictor.class);
@@ -48,19 +50,21 @@ class ChatServiceTest {
         when(predictor.predict(anyString())).thenReturn(Optional.empty());
         when(moodRepository.findAll()).thenReturn(List.of(mood(FUNNY, "весёлое"), mood(SAD, "грустное")));
         when(genreRepository.findAll()).thenReturn(List.of(
-                genre(COMEDY, "комедия"), genre(HORROR, "ужасы"), genre(HISTORY, "исторический")));
+                genre(COMEDY, "комедия"), genre(HORROR, "ужасы"), genre(HISTORY, "исторический"),
+                genre(SCI_FI, "фантастика"), genre(ADVENTURE, "приключения"),
+                genre(WESTERN, "вестерн"))); // вестерна нет в KEYWORDS — ищется по основе слова
         when(typeRepository.findAll()).thenReturn(List.of(type(FILM, "фильм"), type(CARTOON, "мультфильм")));
-        when(recommendationService.recommend(any(), any(), any())).thenReturn(List.of());
+        when(recommendationService.recommend(any(), any(), any(), any(), any())).thenReturn(List.of());
     }
 
     @Test
     void understandsMoodGenreAndTypeAndShowsFiveMovies() {
         modelSays("весёлое", 0.87);
-        when(recommendationService.recommend(FUNNY, COMEDY, CARTOON)).thenReturn(recommendations(8));
+        when(recommendationService.recommend(FUNNY, COMEDY, CARTOON, Set.of(), Set.of())).thenReturn(recommendations(8));
 
         ChatReply reply = chat.reply("Хочу посмеяться, посоветуй комедию, лучше мультик");
 
-        verify(recommendationService).recommend(FUNNY, COMEDY, CARTOON);
+        verify(recommendationService).recommend(FUNNY, COMEDY, CARTOON, Set.of(), Set.of());
         assertTrue(reply.text().contains("настроение: весёлое (уверенность 87%)"));
         assertTrue(reply.text().contains("жанр: комедия"));
         assertTrue(reply.text().contains("тип: мультфильм"));
@@ -74,7 +78,7 @@ class ChatServiceTest {
 
         ChatReply reply = chat.reply("посоветуй ужастик");
 
-        verify(recommendationService).recommend(null, HORROR, null);
+        verify(recommendationService).recommend(null, HORROR, null, Set.of(), Set.of());
         assertTrue(reply.text().contains("настроение: не определено"));
         assertTrue(reply.text().contains("жанр: ужасы"));
     }
@@ -85,7 +89,7 @@ class ChatServiceTest {
 
         ChatReply reply = chat.reply("хочу мрачную комедию");
 
-        verify(recommendationService).recommend(null, COMEDY, null);
+        verify(recommendationService).recommend(null, COMEDY, null, Set.of(), Set.of());
         assertTrue(reply.text().contains("Настроения «мрачное» нет в базе"));
     }
 
@@ -93,7 +97,7 @@ class ChatServiceTest {
     void nothingUnderstoodAsksToRephraseWithExamples() {
         ChatReply reply = chat.reply("ну такое");
 
-        verify(recommendationService, never()).recommend(any(), any(), any());
+        verify(recommendationService, never()).recommend(any(), any(), any(), any(), any());
         assertTrue(reply.text().contains("Опишите иначе"));
         assertTrue(reply.text().contains("«хочу посмеяться»"));
         assertTrue(reply.movies().isEmpty());
@@ -106,22 +110,71 @@ class ChatServiceTest {
         assertTrue(chat.reply("спасибо большое)").text().startsWith("Пожалуйста"));
 
         verify(predictor, never()).predict(anyString());
-        verify(recommendationService, never()).recommend(any(), any(), any());
+        verify(recommendationService, never()).recommend(any(), any(), any(), any(), any());
     }
 
     @Test
     void genreAndTypeAreFoundByWordStem() {
         assertEquals("комедия", ChatService.findInMessage(
-                ChatService.words("найди комедию"), genreRepository.findAll(), Genre::getName).getName());
+                ChatService.words("найди комедию"), genreRepository.findAll(), Genre::getName).wanted().getName());
         assertEquals("ужасы", ChatService.findInMessage(
-                ChatService.words("хочу ужастик"), genreRepository.findAll(), Genre::getName).getName());
+                ChatService.words("хочу ужастик"), genreRepository.findAll(), Genre::getName).wanted().getName());
         assertEquals("мультфильм", ChatService.findInMessage(
-                ChatService.words("какой-нибудь мультик"), typeRepository.findAll(), MovieType::getName).getName());
+                ChatService.words("какой-нибудь мультик"), typeRepository.findAll(), MovieType::getName).wanted().getName());
         assertEquals("фильм", ChatService.findInMessage(
-                ChatService.words("посоветуй фильмы"), typeRepository.findAll(), MovieType::getName).getName());
+                ChatService.words("посоветуй фильмы"), typeRepository.findAll(), MovieType::getName).wanted().getName());
         // «историю» не должна считаться жанром «исторический»
         assertNull(ChatService.findInMessage(
-                ChatService.words("хочу историю успеха"), genreRepository.findAll(), Genre::getName));
+                ChatService.words("хочу историю успеха"), genreRepository.findAll(), Genre::getName).wanted());
+    }
+
+    @Test
+    void genreWordFormsFromKeywordsAndStemFallback() {
+        assertEquals(SCI_FI, wantedGenre("что-нибудь фантастическое").getId());
+        assertEquals(ADVENTURE, wantedGenre("приключенческий фильм").getId());
+        assertEquals(HORROR, wantedGenre("фильм ужасов").getId());
+        assertEquals(HORROR, wantedGenre("какой-нибудь хоррор").getId());
+        assertEquals(WESTERN, wantedGenre("старые вестерны").getId());
+        // «ужасно» — не жанр «ужасы»
+        assertNull(wantedGenre("ужасно устал после работы"));
+    }
+
+    @Test
+    void negatedGenresAndTypesAreExcluded() {
+        modelSays("весёлое", 0.8);
+
+        ChatReply reply = chat.reply("хочу посмеяться, только не ужасы и не хочу мультики");
+
+        verify(recommendationService).recommend(FUNNY, null, null, Set.of(HORROR), Set.of(CARTOON));
+        assertTrue(reply.text().contains("жанр: любой"));
+        assertTrue(reply.text().contains("кроме: ужасы, мультфильм"));
+    }
+
+    @Test
+    void negationWorksOnlyRightBeforeWordOrThroughVerb() {
+        var genres = genreRepository.findAll();
+
+        var withoutHorror = ChatService.findInMessage(ChatService.words("комедию, но без ужасов"), genres, Genre::getName);
+        assertEquals(COMEDY, withoutHorror.wanted().getId());
+        assertEquals(List.of(HORROR), withoutHorror.excluded().stream().map(Genre::getId).toList());
+
+        // «не» относится к «грустную», а комедия нужна
+        var notSadComedy = ChatService.findInMessage(ChatService.words("не грустную комедию"), genres, Genre::getName);
+        assertEquals(COMEDY, notSadComedy.wanted().getId());
+        assertTrue(notSadComedy.excluded().isEmpty());
+    }
+
+    @Test
+    void onlyExclusionsAskWhatToWatch() {
+        ChatReply reply = chat.reply("только не ужасы");
+
+        verify(recommendationService, never()).recommend(any(), any(), any(), any(), any());
+        assertTrue(reply.text().startsWith("Понял, что не хотите: ужасы."));
+        assertTrue(reply.movies().isEmpty());
+    }
+
+    private Genre wantedGenre(String message) {
+        return ChatService.findInMessage(ChatService.words(message), genreRepository.findAll(), Genre::getName).wanted();
     }
 
     @Test

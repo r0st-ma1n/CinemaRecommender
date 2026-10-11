@@ -7,12 +7,14 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Подбор фильмов по баллам:
  * совпало настроение +3, жанр +2, тип +1.
  * Возвращаются первые 10 фильмов с баллом больше нуля;
  * при равных баллах выше фильм с более высоким рейтингом.
+ * Фильмы исключённых жанров и типов не предлагаются совсем (чат: «только не ужасы»).
  */
 @Service
 public class RecommendationService {
@@ -34,9 +36,22 @@ public class RecommendationService {
      * @param typeId  выбранный тип или null
      */
     public List<Recommendation> recommend(Long moodId, Long genreId, Long typeId) {
+        return recommend(moodId, genreId, typeId, Set.of(), Set.of());
+    }
+
+    /**
+     * @param excludedGenreIds жанры, фильмы которых не нужно предлагать
+     * @param excludedTypeIds  типы, которые не нужно предлагать
+     */
+    public List<Recommendation> recommend(Long moodId, Long genreId, Long typeId,
+                                          Set<Long> excludedGenreIds, Set<Long> excludedTypeIds) {
         List<Recommendation> result = new ArrayList<>();
 
         for (Movie movie : movieRepository.findAllWithDetails()) {
+            if (excludedTypeIds.contains(movie.getType().getId())
+                    || movie.getGenres().stream().anyMatch(g -> excludedGenreIds.contains(g.getId()))) {
+                continue;
+            }
             boolean moodMatched = moodId != null
                     && movie.getMoods().stream().anyMatch(m -> m.getId().equals(moodId));
             boolean genreMatched = genreId != null

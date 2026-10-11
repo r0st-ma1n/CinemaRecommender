@@ -67,6 +67,18 @@ class RecommendationServiceTest {
     }
 
     @Test
+    void excludedGenresAndTypesAreSkipped() {
+        when(repository.findAllWithDetails()).thenReturn(List.of(
+                movie("Весёлая драма", 9.0, FILM, DRAMA, FUNNY),      // исключён жанр
+                movie("Весёлый сериал", 8.0, SERIES, COMEDY, FUNNY),  // исключён тип
+                movie("Весёлая комедия", 7.0, FILM, COMEDY, FUNNY)));
+
+        List<Recommendation> result = service.recommend(FUNNY, null, null, Set.of(DRAMA), Set.of(SERIES));
+
+        assertEquals(List.of("Весёлая комедия"), titles(result));
+    }
+
+    @Test
     void nothingSelectedGivesEmptyResult() {
         when(repository.findAllWithDetails()).thenReturn(List.of(movie("Фильм", 8.0, FILM, COMEDY, FUNNY)));
 
