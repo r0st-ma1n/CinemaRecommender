@@ -36,15 +36,18 @@ public class RecommendationService {
      * @param typeId  выбранный тип или null
      */
     public List<Recommendation> recommend(Long moodId, Long genreId, Long typeId) {
-        return recommend(moodId, genreId, typeId, Set.of(), Set.of());
+        return rank(moodId, genreId, typeId, Set.of(), Set.of()).stream().limit(LIMIT).toList();
     }
 
     /**
+     * Все фильмы с баллом больше нуля в порядке подбора, без ограничения LIMIT —
+     * чат показывает их по частям («ещё»).
+     *
      * @param excludedGenreIds жанры, фильмы которых не нужно предлагать
      * @param excludedTypeIds  типы, которые не нужно предлагать
      */
-    public List<Recommendation> recommend(Long moodId, Long genreId, Long typeId,
-                                          Set<Long> excludedGenreIds, Set<Long> excludedTypeIds) {
+    public List<Recommendation> rank(Long moodId, Long genreId, Long typeId,
+                                     Set<Long> excludedGenreIds, Set<Long> excludedTypeIds) {
         List<Recommendation> result = new ArrayList<>();
 
         for (Movie movie : movieRepository.findAllWithDetails()) {
@@ -75,6 +78,6 @@ public class RecommendationService {
                 .thenComparing(r -> r.movie().getRating(), Comparator.reverseOrder())
                 .thenComparing(r -> r.movie().getTitle()));
 
-        return result.stream().limit(LIMIT).toList();
+        return result;
     }
 }
