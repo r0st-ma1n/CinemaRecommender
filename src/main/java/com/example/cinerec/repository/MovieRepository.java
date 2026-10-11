@@ -15,6 +15,10 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     @EntityGraph(attributePaths = {"type", "genres"})
     List<Movie> findAllByOrderByRatingDescTitleAsc();
 
+    // Список фильмов в админке — по алфавиту
+    @EntityGraph(attributePaths = {"type"})
+    List<Movie> findAllByOrderByTitleAsc();
+
     // Все фильмы вместе с типом, жанрами и настроениями — для подсчёта баллов при подборе
     @EntityGraph(attributePaths = {"type", "genres", "moods"})
     @Query("select m from Movie m")
