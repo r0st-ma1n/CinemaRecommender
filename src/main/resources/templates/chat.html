@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Чат')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container mb-4" style="max-width: 48rem">
+    <h1 class="h3 mb-3">Чат с ботом</h1>
+
+    <div class="card">
+        <!-- Сюда скрипт chat.js добавляет сообщения -->
+        <div id="chatMessages" class="card-body chat-messages">
+            <div class="chat-message bot">
+                <div class="chat-bubble" th:if="${modelAvailable}">Привет! Я помогу выбрать, что посмотреть.
+Напишите, какое у вас настроение или чего хочется, можно указать жанр и тип.
+Например:
+• «хочу посмеяться»
+• «посоветуй ужастик»
+• «грустный сериал»
+• «устал после работы, хочу мультик»</div>
+                <div class="chat-bubble" th:unless="${modelAvailable}">Модель для чата не обучена, поэтому я не могу понять ваше настроение.
+Выполните команду ./mvnw compile exec:java и перезапустите приложение.</div>
+            </div>
+        </div>
+
+        <form id="chatForm" class="card-footer d-flex gap-2" th:attr="data-api-url=@{/api/chat}">
+            <input id="chatInput" type="text" class="form-control" maxlength="500" autocomplete="off"
+                   placeholder="Напишите, что хотите посмотреть…" required autofocus>
+            <button id="chatSend" type="submit" class="btn btn-primary">Отправить</button>
+        </form>
+    </div>
+</main>
+
+<!-- Ссылки, которые нужны скрипту: страница фильма и заглушка постера -->
+<script th:inline="javascript">
+    const MOVIE_URL = /*[[@{/movies/}]]*/ '/movies/';
+    const NO_POSTER_URL = /*[[@{/img/no-poster.svg}]]*/ '/img/no-poster.svg';
+</script>
+<script th:src="@{/js/chat.js}"></script>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
