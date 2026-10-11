@@ -81,13 +81,13 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            <!-- Отдельный запуск обучения модели: ./mvnw compile exec:java -->
+            <!-- Обучение обеих моделей одной командой: ./mvnw compile exec:java -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.5.0</version>
                 <configuration>
-                    <mainClass>com.example.cinerec.ml.TrainMoodModel</mainClass>
+                    <mainClass>com.example.cinerec.ml.TrainModels</mainClass>
                 </configuration>
             </plugin>
         </plugins>
