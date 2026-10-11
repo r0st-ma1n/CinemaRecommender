@@ -61,6 +61,13 @@
             <version>5.3.3</version>
         </dependency>
 
+        <!-- Weka: машинное обучение (классификатор настроения по описанию) -->
+        <dependency>
+            <groupId>nz.ac.waikato.cms.weka</groupId>
+            <artifactId>weka-stable</artifactId>
+            <version>3.8.6</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -73,6 +80,15 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Отдельный запуск обучения модели: ./mvnw compile exec:java -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>com.example.cinerec.ml.TrainMoodModel</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
