@@ -64,6 +64,8 @@ class RecommendationServiceTest {
         when(repository.findAllWithDetails()).thenReturn(movies);
 
         assertEquals(10, service.recommend(null, COMEDY, null).size());
+        // Для чата («ещё») — все подходящие фильмы
+        assertEquals(15, service.rank(null, COMEDY, null, Set.of(), Set.of()).size());
     }
 
     @Test
@@ -73,7 +75,7 @@ class RecommendationServiceTest {
                 movie("Весёлый сериал", 8.0, SERIES, COMEDY, FUNNY),  // исключён тип
                 movie("Весёлая комедия", 7.0, FILM, COMEDY, FUNNY)));
 
-        List<Recommendation> result = service.recommend(FUNNY, null, null, Set.of(DRAMA), Set.of(SERIES));
+        List<Recommendation> result = service.rank(FUNNY, null, null, Set.of(DRAMA), Set.of(SERIES));
 
         assertEquals(List.of("Весёлая комедия"), titles(result));
     }

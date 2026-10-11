@@ -9,6 +9,10 @@ const sendButton = document.getElementById('chatSend');
 const messages = document.getElementById('chatMessages');
 const apiUrl = form.dataset.apiUrl;
 
+// Условия прошлого запроса и показанные фильмы: бот возвращает их в ответе,
+// а страница отправляет со следующим сообщением — так работают «ещё» и «а сериал».
+let context = null;
+
 form.addEventListener('submit', async (event) => {
     event.preventDefault(); // не перезагружать страницу
     const text = input.value.trim();
@@ -25,12 +29,15 @@ form.addEventListener('submit', async (event) => {
         const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text})
+            body: JSON.stringify({message: text, context: context})
         });
         if (!response.ok) {
             throw new Error('HTTP ' + response.status);
         }
         const reply = await response.json();
+        if (reply.context) { // ответы без подбора («спасибо») контекст не меняют
+            context = reply.context;
+        }
         typing.remove();
         const botMessage = addMessage('bot', reply.text);
         for (const movie of reply.movies) {
