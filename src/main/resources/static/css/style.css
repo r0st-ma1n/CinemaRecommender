@@ -1,0 +1,15 @@
+/* Постер всегда в пропорции 2:3, как у настоящих кинопостеров */
+.poster {
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    width: 100%;
+    background: #dee2e6;
+}
+
+.movie-card {
+    transition: transform .15s;
+}
+
+.movie-card:hover {
+    transform: translateY(-3px);
+}

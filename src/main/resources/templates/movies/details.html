@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${movie.title})}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container mb-5">
+    <a th:href="@{/}" class="btn btn-link px-0 mb-3">← Назад в каталог</a>
+
+    <div class="row g-4">
+        <div class="col-sm-5 col-md-4 col-lg-3">
+            <img th:replace="~{fragments/layout :: poster(${movie}, 'poster rounded shadow-sm')}">
+        </div>
+        <div class="col-sm-7 col-md-8 col-lg-9">
+            <h1 th:text="${movie.title}">Название</h1>
+            <p class="text-muted fs-5">
+                <span th:text="${movie.year}">2000</span> ·
+                <span th:text="${movie.type.name}">фильм</span> ·
+                <span class="badge text-bg-warning align-middle"
+                      th:text="'★ ' + ${#numbers.formatDecimal(movie.rating, 1, 1, 'POINT')}">★ 8.0</span>
+            </p>
+
+            <p class="fs-5" th:text="${movie.description}">Описание</p>
+
+            <dl class="row mt-4">
+                <dt class="col-sm-3">Жанры</dt>
+                <dd class="col-sm-9">
+                    <span th:each="genre : ${movie.genres}" class="badge text-bg-secondary me-1"
+                          th:text="${genre.name}">жанр</span>
+                    <span th:if="${#sets.isEmpty(movie.genres)}" class="text-muted">не указаны</span>
+                </dd>
+                <dt class="col-sm-3">Настроение</dt>
+                <dd class="col-sm-9">
+                    <span th:each="mood : ${movie.moods}" class="badge text-bg-info me-1"
+                          th:text="${mood.name}">настроение</span>
+                    <span th:if="${#sets.isEmpty(movie.moods)}" class="text-muted">не указано</span>
+                </dd>
+            </dl>
+        </div>
+    </div>
+</main>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -46,12 +46,14 @@ public class Movie {
     private MovieType type;
 
     @ManyToMany
+    @OrderBy("name")
     @JoinTable(name = "movie_genre",
             joinColumns = @JoinColumn(name = "movie_id"),
             inverseJoinColumns = @JoinColumn(name = "genre_id"))
     private Set<Genre> genres = new HashSet<>();
 
     @ManyToMany
+    @OrderBy("name")
     @JoinTable(name = "movie_mood",
             joinColumns = @JoinColumn(name = "movie_id"),
             inverseJoinColumns = @JoinColumn(name = "mood_id"))
