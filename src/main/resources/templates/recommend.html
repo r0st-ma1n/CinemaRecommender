@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Подбор')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container mb-5">
+    <h1>Что посмотреть?</h1>
+    <p class="text-muted">
+        Выберите настроение, жанр и тип. За совпадение настроения фильм получает 3 балла,
+        жанра — 2, типа — 1. Показываем 10 лучших.
+    </p>
+
+    <form th:action="@{/recommend}" method="get" class="card card-body mb-4">
+        <input type="hidden" name="submitted" value="1">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="moodId" class="form-label">Настроение</label>
+                <select id="moodId" name="moodId" class="form-select">
+                    <option value="">любое</option>
+                    <option th:each="mood : ${moods}" th:value="${mood.id}" th:text="${mood.name}"
+                            th:selected="${mood.id == moodId}">настроение</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="genreId" class="form-label">Жанр</label>
+                <select id="genreId" name="genreId" class="form-select">
+                    <option value="">любой</option>
+                    <option th:each="genre : ${genres}" th:value="${genre.id}" th:text="${genre.name}"
+                            th:selected="${genre.id == genreId}">жанр</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="typeId" class="form-label">Тип</label>
+                <select id="typeId" name="typeId" class="form-select">
+                    <option value="">любой</option>
+                    <option th:each="type : ${types}" th:value="${type.id}" th:text="${type.name}"
+                            th:selected="${type.id == typeId}">тип</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button type="submit" class="btn btn-primary">Подобрать</button>
+            </div>
+        </div>
+    </form>
+
+    <div th:if="${error}" class="alert alert-warning" th:text="${error}">Ошибка</div>
+
+    <th:block th:if="${results != null}">
+        <p th:if="${#lists.isEmpty(results)}" class="alert alert-info">
+            Ничего не нашлось. Попробуйте выбрать другие параметры.
+        </p>
+
+        <div class="list-group">
+            <a th:each="r, stat : ${results}" th:href="@{/movies/{id}(id=${r.movie.id})}"
+               class="list-group-item list-group-item-action d-flex gap-3 align-items-start">
+                <img th:replace="~{fragments/layout :: poster(${r.movie}, 'poster rounded flex-shrink-0 result-poster')}">
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <h2 class="h5 mb-1">
+                            <span th:text="${stat.count} + '.'">1.</span>
+                            <span th:text="${r.movie.title}">Название</span>
+                        </h2>
+                        <span class="badge text-bg-primary align-self-start fs-6"
+                              th:text="'Баллы: ' + ${r.score}">Баллы: 6</span>
+                    </div>
+                    <div class="small text-muted mb-1">
+                        <span th:text="${r.movie.year}">2000</span> ·
+                        <span th:text="${r.movie.type.name}">фильм</span> ·
+                        <span th:text="${#strings.listJoin(r.movie.genres.![name], ', ')}">жанры</span> ·
+                        <span th:text="'★ ' + ${#numbers.formatDecimal(r.movie.rating, 1, 1, 'POINT')}">★ 8.0</span>
+                    </div>
+                    <p class="mb-1 small" th:text="${r.movie.description}">Описание</p>
+                    <div class="small">
+                        Совпало:
+                        <span th:if="${r.moodMatched}" class="badge text-bg-info">настроение +3</span>
+                        <span th:if="${r.genreMatched}" class="badge text-bg-secondary">жанр +2</span>
+                        <span th:if="${r.typeMatched}" class="badge text-bg-light border">тип +1</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </th:block>
+</main>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
