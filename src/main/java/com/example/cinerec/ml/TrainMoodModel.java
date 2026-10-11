@@ -10,25 +10,28 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Обучение модели подсказок для админки (настроение по описанию фильма).
  * Запускается из TrainModels вместе с моделью для чата: ./mvnw compile exec:java
  *
  * 1. Читает обучающий набор ml/training-data.csv (название;настроение;жанры;описание).
+ *    Список настроений берётся из файла.
  * 2. Делит его на обучающую (80%) и тестовую (20%) части и выводит точность на тестовой.
- * 3. Обучает итоговую модель на всех данных и сохраняет её в ml/mood-model.model.
+ * 3. Выводит точность по перекрёстной проверке на 10 частях — она надёжнее, чем одна
+ *    тестовая часть из ~50 фильмов, потому что в проверке побывает каждый фильм.
+ * 4. Обучает итоговую модель на всех данных и сохраняет её в ml/mood-model.model.
  */
 public class TrainMoodModel {
 
-    // Настроения в том же порядке, что и в базе
-    static final List<String> MOODS =
-            List.of("весёлое", "уютное", "напряжённое", "грустное", "вдохновляющее", "мрачное");
-
     private static final int SEED = 42; // фиксированное «зерно» — результат одинаков при каждом запуске
+    private static final int FOLDS = 10;
 
     static void train(Path csv, Path modelFile) throws Exception {
         Instances data = readCsv(csv);
@@ -52,6 +55,11 @@ public class TrainMoodModel {
                 topTwoAccuracy(classifier, test));
         System.out.println(evaluation.toMatrixString("\nМатрица ошибок (строки — правильный ответ, столбцы — ответ модели):"));
 
+        Evaluation crossValidation = new Evaluation(data);
+        crossValidation.crossValidateModel(MoodModel.newClassifier(), data, FOLDS, new Random(SEED));
+        System.out.printf("Точность (перекрёстная проверка, %d частей): %.1f%%%n%n",
+                FOLDS, crossValidation.pctCorrect());
+
         // Итоговая модель учится на всех 100% данных — так она знает больше примеров.
         Classifier finalModel = MoodModel.newClassifier();
         finalModel.buildClassifier(data);
@@ -64,17 +72,23 @@ public class TrainMoodModel {
 
     /** Чтение CSV с разделителем «;». Первая строка — заголовок. */
     static Instances readCsv(Path csv) throws IOException {
-        Instances data = MoodModel.emptyDataset(MOODS);
-        List<String> lines = Files.readAllLines(csv, StandardCharsets.UTF_8);
-        for (String line : lines.subList(1, lines.size())) {
-            if (line.isBlank()) {
-                continue;
+        List<String[]> rows = new ArrayList<>();
+        for (String line : Files.readAllLines(csv, StandardCharsets.UTF_8).stream().skip(1).toList()) {
+            if (!line.isBlank()) {
+                rows.add(line.split(";", 4)); // название;настроение;жанры;описание
             }
-            String[] parts = line.split(";", 4);
-            String mood = parts[1];
-            List<String> genres = Arrays.asList(parts[2].split(","));
-            String description = parts[3];
-            data.add(MoodModel.newInstance(data, MoodModel.toText(description, genres), mood));
+        }
+
+        // Настроения — все разные значения второго столбца в порядке появления в файле
+        Set<String> moods = new LinkedHashSet<>();
+        for (String[] row : rows) {
+            moods.add(row[1]);
+        }
+
+        Instances data = MoodModel.emptyDataset(new ArrayList<>(moods));
+        for (String[] row : rows) {
+            List<String> genres = Arrays.asList(row[2].split(","));
+            data.add(MoodModel.newInstance(data, MoodModel.toText(row[3], genres), row[1]));
         }
         return data;
     }

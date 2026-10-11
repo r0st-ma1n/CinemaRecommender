@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
@@ -110,14 +111,23 @@ public class AdminMovieController {
                 .map(Genre::getName).toList();
         List<MoodSuggestion> suggestions = moodPredictor.suggest(form.getDescription(), genreNames);
 
-        // Отметить предложенные настроения: находим их в базе по названию
-        List<String> suggestedNames = suggestions.stream().map(MoodSuggestion::mood).toList();
-        form.setMoodIds(moodRepository.findAll().stream()
-                .filter(mood -> suggestedNames.contains(mood.getName()))
-                .map(Mood::getId)
-                .toList());
+        // Отметить предложенные настроения: находим их в базе по названию.
+        // Настроение могли переименовать или удалить в админке — такие запоминаем отдельно.
+        List<Mood> allMoods = moodRepository.findAll();
+        List<Long> foundIds = new ArrayList<>();
+        List<String> missingMoods = new ArrayList<>();
+        for (MoodSuggestion suggestion : suggestions) {
+            allMoods.stream()
+                    .filter(mood -> mood.getName().equalsIgnoreCase(suggestion.mood()))
+                    .findFirst()
+                    .ifPresentOrElse(mood -> foundIds.add(mood.getId()),
+                            () -> missingMoods.add(suggestion.mood()));
+        }
+        form.setMoodIds(foundIds);
 
         model.addAttribute("suggestions", suggestions);
+        model.addAttribute("missingMoods", missingMoods);
+        model.addAttribute("checkedCount", foundIds.size());
         return showForm(form, model);
     }
 
