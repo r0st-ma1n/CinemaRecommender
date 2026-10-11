@@ -82,7 +82,12 @@
                         Модель предлагает:
                         <b th:each="s, stat : ${suggestions}"
                            th:text="${s.mood} + ' (' + ${s.percent()} + '%)' + (${stat.last} ? '' : ', ')">весёлое (70%)</b>.
-                        Отметки уже проставлены — проверьте их и нажмите «Сохранить».
+                        <th:block th:each="name : ${missingMoods}">
+                            Настроения «<span th:text="${name}">мрачное</span>» нет в справочнике — отметьте подходящее вручную.
+                        </th:block>
+                        <th:block th:if="${checkedCount > 0}">
+                            Найденные в справочнике отмечены — проверьте отметки и нажмите «Сохранить».
+                        </th:block>
                     </th:block>
                 </div>
                 <div class="form-check form-check-inline" th:each="mood : ${moods}">
