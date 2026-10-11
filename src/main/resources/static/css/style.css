@@ -6,6 +6,10 @@
     background: #dee2e6;
 }
 
+.result-poster {
+    width: 80px;
+}
+
 .movie-card {
     transition: transform .15s;
 }
