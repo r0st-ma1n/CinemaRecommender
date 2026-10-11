@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Отдельная программа обучения модели настроений (не часть веб-приложения).
- * Запуск: ./mvnw compile exec:java
+ * Обучение модели подсказок для админки (настроение по описанию фильма).
+ * Запускается из TrainModels вместе с моделью для чата: ./mvnw compile exec:java
  *
  * 1. Читает обучающий набор ml/training-data.csv (название;настроение;жанры;описание).
  * 2. Делит его на обучающую (80%) и тестовую (20%) части и выводит точность на тестовой.
@@ -30,10 +30,7 @@ public class TrainMoodModel {
 
     private static final int SEED = 42; // фиксированное «зерно» — результат одинаков при каждом запуске
 
-    public static void main(String[] args) throws Exception {
-        Path csv = Path.of(args.length > 0 ? args[0] : "ml/training-data.csv");
-        Path modelFile = Path.of(args.length > 1 ? args[1] : "ml/mood-model.model");
-
+    static void train(Path csv, Path modelFile) throws Exception {
         Instances data = readCsv(csv);
         System.out.println("Загружено фильмов: " + data.numInstances());
 
