@@ -10,6 +10,65 @@
     width: 80px;
 }
 
+/* Чат: сообщения пользователя справа, бота слева */
+.chat-messages {
+    height: 60vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.chat-message {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-width: 85%;
+}
+
+.chat-message.user {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.chat-message.bot {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.chat-bubble {
+    padding: .5rem .75rem;
+    border-radius: 1rem;
+    white-space: pre-line; /* переводы строк в ответе бота */
+    overflow-wrap: anywhere;
+}
+
+.chat-message.user .chat-bubble {
+    background: var(--bs-primary);
+    color: #fff;
+}
+
+.chat-message.bot .chat-bubble {
+    background: var(--bs-light);
+    border: 1px solid var(--bs-border-color);
+}
+
+.chat-movie {
+    display: flex;
+    flex-direction: row;
+    width: 20rem;
+    max-width: 100%;
+}
+
+.chat-movie .poster {
+    width: 3.5rem;
+    flex-shrink: 0;
+}
+
+.chat-movie:hover {
+    border-color: var(--bs-primary);
+}
+
 .movie-card {
     transition: transform .15s;
 }
