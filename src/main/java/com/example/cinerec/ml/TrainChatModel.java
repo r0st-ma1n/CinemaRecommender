@@ -2,6 +2,8 @@ package com.example.cinerec.ml;
 
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
+import weka.classifiers.evaluation.NominalPrediction;
+import weka.classifiers.evaluation.Prediction;
 import weka.core.Instances;
 import weka.core.SerializationHelper;
 
@@ -10,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
@@ -42,6 +45,7 @@ public class TrainChatModel {
                 FOLDS, evaluation.pctCorrect());
         System.out.println(evaluation.toMatrixString(
                 "\nМатрица ошибок (строки — правильный ответ, столбцы — ответ модели):"));
+        printThresholdTable(evaluation);
 
         Classifier finalModel = MoodModel.newClassifier();
         finalModel.buildClassifier(data);
@@ -70,6 +74,32 @@ public class TrainChatModel {
             data.add(MoodModel.newInstance(data, row[1], row[0]));
         }
         return data;
+    }
+
+    /**
+     * Помогает выбрать порог уверенности для чата (ChatService.MOOD_THRESHOLD).
+     * Для каждого порога: у какой доли фраз вероятность лучшего настроения не ниже порога
+     * (бот считает настроение определённым) и как часто в этих случаях модель права.
+     */
+    private static void printThresholdTable(Evaluation evaluation) {
+        System.out.println("Порог | настроение определено | из них верно");
+        for (double threshold : new double[]{0.3, 0.4, 0.5, 0.6, 0.7}) {
+            int determined = 0;
+            int correct = 0;
+            for (Prediction prediction : evaluation.predictions()) {
+                NominalPrediction p = (NominalPrediction) prediction;
+                double best = Arrays.stream(p.distribution()).max().orElse(0);
+                if (best >= threshold) {
+                    determined++;
+                    if (p.predicted() == p.actual()) {
+                        correct++;
+                    }
+                }
+            }
+            int total = evaluation.predictions().size();
+            System.out.printf("  %.1f |   %5.1f%% фраз            |  %5.1f%%%n", threshold,
+                    100.0 * determined / total, determined == 0 ? 0 : 100.0 * correct / determined);
+        }
     }
 
     private static List<String> listMoods(Instances data) {
