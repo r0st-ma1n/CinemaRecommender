@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Каталог')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container mb-5">
+    <h1 class="mb-1">Каталог</h1>
+    <p class="text-muted mb-4" th:text="'Всего: ' + ${#lists.size(movies)}">Всего: 0</p>
+
+    <p th:if="${#lists.isEmpty(movies)}" class="alert alert-info">В каталоге пока нет фильмов.</p>
+
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3">
+        <div class="col" th:each="movie : ${movies}">
+            <a th:href="@{/movies/{id}(id=${movie.id})}" class="card h-100 text-decoration-none text-body movie-card">
+                <img th:replace="~{fragments/layout :: poster(${movie}, 'card-img-top poster')}">
+                <div class="card-body p-2">
+                    <h2 class="h6 card-title mb-1" th:text="${movie.title}">Название</h2>
+                    <div class="small text-muted">
+                        <span th:text="${movie.year}">2000</span> ·
+                        <span th:text="${movie.type.name}">фильм</span>
+                    </div>
+                    <div class="small text-muted text-truncate"
+                         th:text="${#strings.listJoin(movie.genres.![name], ', ')}">жанры</div>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0 px-2 pb-2">
+                    <span class="badge text-bg-warning"
+                          th:text="'★ ' + ${#numbers.formatDecimal(movie.rating, 1, 1, 'POINT')}">★ 8.0</span>
+                </div>
+            </a>
+        </div>
+    </div>
+</main>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

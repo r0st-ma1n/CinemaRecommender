@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<!-- Общие куски страниц: подключаются в шаблоны через th:replace -->
+
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' — CinemaRecommender'">CinemaRecommender</title>
+    <link rel="stylesheet" th:href="@{/webjars/bootstrap/5.3.3/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+<nav th:fragment="navbar" class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" th:href="@{/}">🎬 CinemaRecommender</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" th:href="@{/}">Каталог</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Постер фильма или заглушка, если ссылки нет -->
+<img th:fragment="poster(movie, cssClass)" th:class="${cssClass}"
+     th:src="${#strings.isEmpty(movie.posterUrl)} ? @{/img/no-poster.svg} : ${movie.posterUrl}"
+     th:alt="${movie.title}">
+
+<th:block th:fragment="scripts">
+    <script th:src="@{/webjars/bootstrap/5.3.3/js/bootstrap.bundle.min.js}"></script>
+</th:block>
+</body>
+</html>
