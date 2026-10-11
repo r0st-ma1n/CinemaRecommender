@@ -39,3 +39,4 @@ ml/*.model
 
 ### IntelliJ IDEA (настройки IDE) ###
 .idea/
+*.iml
