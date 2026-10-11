@@ -36,3 +36,6 @@ target/
 
 ### Обученная модель (создаётся командой ./mvnw compile exec:java) ###
 ml/*.model
+
+### IntelliJ IDEA (настройки IDE) ###
+.idea/
