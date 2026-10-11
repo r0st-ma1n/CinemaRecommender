@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<!-- Общая страница для справочников: жанров и настроений -->
+<head th:replace="~{fragments/layout :: head('Админка: ' + ${pageTitle})}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container mb-5">
+    <h1>Админка</h1>
+    <div th:replace="~{fragments/layout :: adminTabs(${section})}"></div>
+
+    <form th:action="@{${baseUrl}}" method="post" class="row g-2 mb-4" style="max-width: 32rem">
+        <div class="col">
+            <input type="text" name="name" class="form-control" maxlength="50" required
+                   placeholder="Новое название">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-success">+ Добавить</button>
+        </div>
+    </form>
+
+    <p th:if="${#lists.isEmpty(items)}" class="text-muted">Пока ничего нет.</p>
+
+    <table class="table align-middle" style="max-width: 40rem">
+        <tbody>
+        <tr th:each="item : ${items}">
+            <td>
+                <form th:action="@{${baseUrl} + '/' + ${item.id}}" method="post" class="d-flex gap-2">
+                    <input type="text" name="name" th:value="${item.name}" class="form-control form-control-sm"
+                           maxlength="50" required>
+                    <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Сохранить</button>
+                </form>
+            </td>
+            <td class="text-end" style="width: 1%">
+                <form th:action="@{${baseUrl} + '/' + ${item.id} + '/delete'}" method="post"
+                      onsubmit="return confirm('Удалить? Связи с фильмами тоже будут удалены.');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

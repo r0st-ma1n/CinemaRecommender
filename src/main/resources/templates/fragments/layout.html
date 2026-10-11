@@ -21,10 +21,28 @@
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" th:href="@{/}">Каталог</a></li>
                 <li class="nav-item"><a class="nav-link" th:href="@{/recommend}">Подобрать фильм</a></li>
+                <li class="nav-item"><a class="nav-link" th:href="@{/admin}">Админка</a></li>
             </ul>
         </div>
     </div>
 </nav>
+
+<!-- Вкладки админки и сообщения об успехе/ошибке после действия -->
+<div th:fragment="adminTabs(section)">
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link" th:classappend="${section == 'movies'} ? 'active'" th:href="@{/admin/movies}">Фильмы</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" th:classappend="${section == 'genres'} ? 'active'" th:href="@{/admin/genres}">Жанры</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" th:classappend="${section == 'moods'} ? 'active'" th:href="@{/admin/moods}">Настроения</a>
+        </li>
+    </ul>
+    <div th:if="${message}" class="alert alert-success" th:text="${message}">Сохранено</div>
+    <div th:if="${error}" class="alert alert-danger" th:text="${error}">Ошибка</div>
+</div>
 
 <!-- Постер фильма или заглушка, если ссылки нет -->
 <img th:fragment="poster(movie, cssClass)" th:class="${cssClass}"
