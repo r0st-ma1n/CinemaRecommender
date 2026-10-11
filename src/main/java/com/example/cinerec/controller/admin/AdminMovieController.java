@@ -1,7 +1,11 @@
 package com.example.cinerec.controller.admin;
 
+import com.example.cinerec.entity.Genre;
+import com.example.cinerec.entity.Mood;
 import com.example.cinerec.entity.Movie;
 import com.example.cinerec.form.MovieForm;
+import com.example.cinerec.ml.MoodPredictor;
+import com.example.cinerec.ml.MoodSuggestion;
 import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieRepository;
@@ -17,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * Админка: список, добавление, изменение и удаление фильмов.
@@ -31,15 +36,18 @@ public class AdminMovieController {
     private final MovieTypeRepository typeRepository;
     private final GenreRepository genreRepository;
     private final MoodRepository moodRepository;
+    private final MoodPredictor moodPredictor;
 
     public AdminMovieController(MovieRepository movieRepository,
                                 MovieTypeRepository typeRepository,
                                 GenreRepository genreRepository,
-                                MoodRepository moodRepository) {
+                                MoodRepository moodRepository,
+                                MoodPredictor moodPredictor) {
         this.movieRepository = movieRepository;
         this.typeRepository = typeRepository;
         this.genreRepository = genreRepository;
         this.moodRepository = moodRepository;
+        this.moodPredictor = moodPredictor;
     }
 
     @GetMapping
@@ -85,6 +93,34 @@ public class AdminMovieController {
         return "redirect:/admin/movies";
     }
 
+    /**
+     * Кнопка «Подсказать настроение»: модель по описанию и жанрам из формы
+     * предлагает одно-два настроения и сразу отмечает их галочками.
+     * Фильм при этом НЕ сохраняется — админ проверяет, при необходимости
+     * исправляет отметки и только потом нажимает «Сохранить».
+     */
+    @PostMapping("/suggest-moods")
+    public String suggestMoods(@ModelAttribute("movieForm") MovieForm form, Model model) {
+        if (form.getDescription() == null || form.getDescription().isBlank()) {
+            model.addAttribute("error", "Чтобы получить подсказку, сначала заполните описание");
+            return showForm(form, model);
+        }
+
+        List<String> genreNames = genreRepository.findAllById(form.getGenreIds()).stream()
+                .map(Genre::getName).toList();
+        List<MoodSuggestion> suggestions = moodPredictor.suggest(form.getDescription(), genreNames);
+
+        // Отметить предложенные настроения: находим их в базе по названию
+        List<String> suggestedNames = suggestions.stream().map(MoodSuggestion::mood).toList();
+        form.setMoodIds(moodRepository.findAll().stream()
+                .filter(mood -> suggestedNames.contains(mood.getName()))
+                .map(Mood::getId)
+                .toList());
+
+        model.addAttribute("suggestions", suggestions);
+        return showForm(form, model);
+    }
+
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
         Movie movie = findMovie(id);
@@ -99,6 +135,7 @@ public class AdminMovieController {
         model.addAttribute("types", typeRepository.findAll(Sort.by("id")));
         model.addAttribute("genres", genreRepository.findAll(Sort.by("name")));
         model.addAttribute("moods", moodRepository.findAll(Sort.by("id")));
+        model.addAttribute("modelAvailable", moodPredictor.isAvailable());
         return "admin/movie-form";
     }
 
