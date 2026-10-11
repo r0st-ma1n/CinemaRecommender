@@ -70,7 +70,7 @@ class ChatServiceTest {
 
     @Test
     void lowConfidenceMeansMoodNotDetermined() {
-        modelSays("грустное", 0.35); // ниже порога 0.4
+        modelSays("грустное", 0.45); // ниже порога 0.5
 
         ChatReply reply = chat.reply("посоветуй ужастик");
 
