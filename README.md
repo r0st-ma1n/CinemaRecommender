@@ -17,7 +17,7 @@ Java 21, Spring Boot 3.5 (Web, Data JPA, Thymeleaf, Validation), PostgreSQL 16, 
 
 ## Что нужно установить
 
-- **JDK 17 или новее** (проект собирается под Java 21). Переменная `JAVA_HOME` должна указывать на JDK.
+- **JDK 21 или новее** (на более старых JDK проект не соберётся). Переменная `JAVA_HOME` должна указывать на JDK.
 - **Docker Desktop** — для базы PostgreSQL. Можно и без Docker, если PostgreSQL уже установлен (см. ниже).
 - Maven ставить не нужно: в проекте есть Maven Wrapper (`mvnw` / `mvnw.cmd`).
 
