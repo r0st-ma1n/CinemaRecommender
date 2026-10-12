@@ -36,17 +36,21 @@ public class RecommendationService {
      * @param typeId  выбранный тип или null
      */
     public List<Recommendation> recommend(Long moodId, Long genreId, Long typeId) {
-        return rank(moodId, genreId, typeId, Set.of(), Set.of()).stream().limit(LIMIT).toList();
+        return rank(moodId, idSet(genreId), idSet(typeId), Set.of(), Set.of()).stream().limit(LIMIT).toList();
     }
 
     /**
      * Все фильмы с баллом больше нуля в порядке подбора, без ограничения LIMIT —
      * чат показывает их по частям («ещё»).
+     * Жанров и типов может быть несколько («комедию или мелодраму»): баллы за жанр даются,
+     * если у фильма есть любой из них, за тип — если фильм любого из типов.
      *
+     * @param genreIds         нужные жанры (пустой набор — любой)
+     * @param typeIds          нужные типы (пустой набор — любой)
      * @param excludedGenreIds жанры, фильмы которых не нужно предлагать
      * @param excludedTypeIds  типы, которые не нужно предлагать
      */
-    public List<Recommendation> rank(Long moodId, Long genreId, Long typeId,
+    public List<Recommendation> rank(Long moodId, Set<Long> genreIds, Set<Long> typeIds,
                                      Set<Long> excludedGenreIds, Set<Long> excludedTypeIds) {
         List<Recommendation> result = new ArrayList<>();
 
@@ -57,10 +61,8 @@ public class RecommendationService {
             }
             boolean moodMatched = moodId != null
                     && movie.getMoods().stream().anyMatch(m -> m.getId().equals(moodId));
-            boolean genreMatched = genreId != null
-                    && movie.getGenres().stream().anyMatch(g -> g.getId().equals(genreId));
-            boolean typeMatched = typeId != null
-                    && movie.getType().getId().equals(typeId);
+            boolean genreMatched = movie.getGenres().stream().anyMatch(g -> genreIds.contains(g.getId()));
+            boolean typeMatched = typeIds.contains(movie.getType().getId());
 
             int score = 0;
             if (moodMatched) score += MOOD_POINTS;
@@ -79,5 +81,10 @@ public class RecommendationService {
                 .thenComparing(r -> r.movie().getTitle()));
 
         return result;
+    }
+
+    /** Один выбранный id из формы подбора как набор; null («любой») — пустой набор. */
+    private static Set<Long> idSet(Long id) {
+        return id == null ? Set.of() : Set.of(id);
     }
 }

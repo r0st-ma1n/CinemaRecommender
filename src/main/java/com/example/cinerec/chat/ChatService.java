@@ -77,6 +77,9 @@ public class ChatService {
     private static final Set<String> NEGATED_VERBS = Set.of(
             "хочу", "хочется", "надо", "нужно", "нужен", "нужны", "люблю", "нравится", "нравятся",
             "показывай", "предлагай", "советуй", "смотреть");
+    // Слова, которые стоят рядом с запретами: «только не ужасы, пожалуйста»
+    private static final Set<String> EXCLUSION_FILLER = Set.of(
+            "только", "но", "а", "и", "пожалуйста", "лучше", "давай", "ну", "уж", "точно");
 
     private static final Set<String> GREETING_WORDS = Set.of(
             "привет", "приветик", "приветствую", "здравствуй", "здравствуйте", "здрасте",
@@ -154,13 +157,19 @@ public class ChatService {
         List<Mood> allMoods = moodRepository.findAll();
         List<Genre> allGenres = genreRepository.findAll();
         List<MovieType> allTypes = typeRepository.findAll();
-        MoodSuggestion mood = moodPredictor.predict(message)
-                .filter(p -> p.probability() >= MOOD_THRESHOLD)
-                .orElse(null);
         Mentions<Genre> genres = findInMessage(words, allGenres, Genre::getName);
         Mentions<MovieType> types = findInMessage(words, allTypes, MovieType::getName);
+        // В сообщении из одних запретов («только не мелодрамы») настроения нет, а модель
+        // по названию жанра уверенно угадала бы его («мелодрамы» → грустное) — её не спрашиваем
+        boolean justExclusions = words.stream().allMatch(w -> EXCLUSION_FILLER.contains(w)
+                || NEGATIONS.contains(w) || NEGATED_VERBS.contains(w)
+                || genres.excluded().stream().anyMatch(g -> matches(w, normalize(g.getName())))
+                || types.excluded().stream().anyMatch(t -> matches(w, normalize(t.getName()))));
+        MoodSuggestion mood = justExclusions ? null : moodPredictor.predict(message)
+                .filter(p -> p.probability() >= MOOD_THRESHOLD)
+                .orElse(null);
 
-        boolean onlyExclusions = mood == null && genres.wanted() == null && types.wanted() == null;
+        boolean onlyExclusions = mood == null && genres.wanted().isEmpty() && types.wanted().isEmpty();
         if (onlyExclusions && genres.excluded().isEmpty() && types.excluded().isEmpty()) {
             return ChatReply.textOnly("Не совсем понял, что вам хочется посмотреть. Опишите иначе. " + EXAMPLES);
         }
@@ -177,36 +186,35 @@ public class ChatService {
                 .findFirst()
                 .orElse(null);
         Long moodId = moodInDb != null ? moodInDb.getId() : base.moodId();
-        Long genreId = genres.wanted() != null ? genres.wanted().getId() : base.genreId();
-        Long typeId = types.wanted() != null ? types.wanted().getId() : base.typeId();
+        // Жанры и типы из сообщения заменяют прежние целиком: «а теперь комедию» — уже не драма
+        Set<Long> genreIds = new HashSet<>(genres.wanted().isEmpty()
+                ? base.genreIds() : idsOf(genres.wanted(), Genre::getId));
+        Set<Long> typeIds = new HashSet<>(types.wanted().isEmpty()
+                ? base.typeIds() : idsOf(types.wanted(), MovieType::getId));
 
         Set<Long> excludedGenreIds = new HashSet<>(base.excludedGenreIds());
-        genres.excluded().forEach(g -> excludedGenreIds.add(g.getId()));
+        excludedGenreIds.addAll(idsOf(genres.excluded(), Genre::getId));
         Set<Long> excludedTypeIds = new HashSet<>(base.excludedTypeIds());
-        types.excluded().forEach(t -> excludedTypeIds.add(t.getId()));
+        excludedTypeIds.addAll(idsOf(types.excluded(), MovieType::getId));
         // Новое пожелание отменяет прежний запрет («а теперь ужасы»), а новый запрет — прежнее пожелание
-        if (genres.wanted() != null) {
-            excludedGenreIds.remove(genreId);
-        } else if (excludedGenreIds.contains(genreId)) {
-            genreId = null;
-        }
-        if (types.wanted() != null) {
-            excludedTypeIds.remove(typeId);
-        } else if (excludedTypeIds.contains(typeId)) {
-            typeId = null;
-        }
+        excludedGenreIds.removeAll(idsOf(genres.wanted(), Genre::getId));
+        excludedTypeIds.removeAll(idsOf(types.wanted(), MovieType::getId));
+        genreIds.removeAll(excludedGenreIds);
+        typeIds.removeAll(excludedTypeIds);
 
         // id из контекста могли устареть (запись удалили в админке) — такие не учитываются
-        Mood moodChosen = findById(allMoods, moodId, Mood::getId);
-        Genre genre = findById(allGenres, genreId, Genre::getId);
-        MovieType type = findById(allTypes, typeId, MovieType::getId);
+        Mood moodChosen = moodId == null ? null
+                : allMoods.stream().filter(m -> moodId.equals(m.getId())).findFirst().orElse(null);
+        List<Genre> chosenGenres = allGenres.stream().filter(g -> genreIds.contains(g.getId())).toList();
+        List<MovieType> chosenTypes = allTypes.stream().filter(t -> typeIds.contains(t.getId())).toList();
         String excluded = Stream.concat(
                         allGenres.stream().filter(g -> excludedGenreIds.contains(g.getId())).map(Genre::getName),
                         allTypes.stream().filter(t -> excludedTypeIds.contains(t.getId())).map(MovieType::getName))
                 .collect(Collectors.joining(", "));
 
         boolean moodMissingInDb = mood != null && moodInDb == null;
-        if (moodChosen == null && genre == null && type == null && !moodMissingInDb) {
+        boolean nothingWanted = moodChosen == null && chosenGenres.isEmpty() && chosenTypes.isEmpty();
+        if (nothingWanted && !moodMissingInDb) {
             return ChatReply.textOnly("Понял, что не хотите: " + excluded
                     + ". А что хочется посмотреть? " + EXAMPLES);
         }
@@ -214,15 +222,15 @@ public class ChatService {
         StringBuilder text = new StringBuilder("Понял так:\n");
         text.append("• настроение: ").append(mood != null ? mood.mood() + " (уверенность " + mood.percent() + "%)"
                 : moodChosen != null ? moodChosen.getName() : "не определено").append('\n');
-        text.append("• жанр: ").append(genre == null ? "любой" : genre.getName()).append('\n');
-        text.append("• тип: ").append(type == null ? "любой" : type.getName()).append('\n');
+        text.append("• жанр: ").append(namesOrAny(chosenGenres, Genre::getName)).append('\n');
+        text.append("• тип: ").append(namesOrAny(chosenTypes, MovieType::getName)).append('\n');
         if (!excluded.isEmpty()) {
             text.append("• кроме: ").append(excluded).append('\n');
         }
 
         if (moodMissingInDb) {
             text.append("Настроения «").append(mood.mood()).append("» нет в базе, поэтому его не учитываю.\n");
-            if (moodChosen == null && genre == null && type == null) {
+            if (nothingWanted) {
                 text.append("Уточните жанр или тип. ").append(EXAMPLES);
                 return ChatReply.textOnly(text.toString());
             }
@@ -231,8 +239,7 @@ public class ChatService {
         // 5. Подбор существующим сервисом: те же баллы, что и в форме подбора
         return showMovies(new ChatContext(
                 moodChosen == null ? null : moodChosen.getId(),
-                genre == null ? null : genre.getId(),
-                type == null ? null : type.getId(),
+                idsOf(chosenGenres, Genre::getId), idsOf(chosenTypes, MovieType::getId),
                 excludedGenreIds, excludedTypeIds, List.of()), text, false);
     }
 
@@ -241,8 +248,8 @@ public class ChatService {
      * В ответе — новый контекст, где к показанным добавлены эти фильмы.
      */
     private ChatReply showMovies(ChatContext criteria, StringBuilder text, boolean more) {
-        List<Movie> remaining = recommendationService.rank(criteria.moodId(), criteria.genreId(),
-                        criteria.typeId(), criteria.excludedGenreIds(), criteria.excludedTypeIds()).stream()
+        List<Movie> remaining = recommendationService.rank(criteria.moodId(), criteria.genreIds(),
+                        criteria.typeIds(), criteria.excludedGenreIds(), criteria.excludedTypeIds()).stream()
                 .map(Recommendation::movie)
                 .filter(m -> !criteria.shownMovieIds().contains(m.getId()))
                 .toList();
@@ -261,7 +268,7 @@ public class ChatService {
 
         List<Long> shown = Stream.concat(criteria.shownMovieIds().stream(), movies.stream().map(Movie::getId))
                 .toList();
-        ChatContext next = new ChatContext(criteria.moodId(), criteria.genreId(), criteria.typeId(),
+        ChatContext next = new ChatContext(criteria.moodId(), criteria.genreIds(), criteria.typeIds(),
                 criteria.excludedGenreIds(), criteria.excludedTypeIds(), shown);
         return new ChatReply(text.toString(), movies.stream().map(ChatMovie::from).toList(), next);
     }
@@ -272,8 +279,13 @@ public class ChatService {
                 && words.stream().allMatch(w -> MORE_WORDS.contains(w) || MORE_FILLER.contains(w));
     }
 
-    private static <T> T findById(List<T> items, Long id, Function<T, Long> idOf) {
-        return id == null ? null : items.stream().filter(it -> id.equals(idOf.apply(it))).findFirst().orElse(null);
+    private static <T> Set<Long> idsOf(List<T> items, Function<T, Long> idOf) {
+        return items.stream().map(idOf).collect(Collectors.toSet());
+    }
+
+    /** «комедия или мелодрама»; если ничего не выбрано — «любой». */
+    private static <T> String namesOrAny(List<T> items, Function<T, String> nameOf) {
+        return items.isEmpty() ? "любой" : items.stream().map(nameOf).collect(Collectors.joining(" или "));
     }
 
     /** Слова сообщения в нижнем регистре, «ё» заменена на «е», без знаков препинания. */
@@ -286,16 +298,16 @@ public class ChatService {
                 .toList();
     }
 
-    /** Что нашлось в сообщении: нужная запись (или null) и записи с отрицанием перед ними. */
-    record Mentions<T>(T wanted, List<T> excluded) {
+    /** Что нашлось в сообщении: нужные записи и записи с отрицанием перед ними. */
+    record Mentions<T>(List<T> wanted, List<T> excluded) {
     }
 
     /**
-     * Ищет в сообщении записи справочника. Нужная — первая найденная без отрицания перед ней,
-     * исключённые — все найденные с отрицанием («только не ужасы», «без мультиков»).
+     * Ищет в сообщении записи справочника. Нужные — все найденные без отрицания
+     * («комедию или мелодраму»), исключённые — с отрицанием («только не ужасы», «без мультиков»).
      */
     static <T> Mentions<T> findInMessage(List<String> words, List<T> items, Function<T, String> nameOf) {
-        T wanted = null;
+        List<T> wanted = new ArrayList<>();
         List<T> excluded = new ArrayList<>();
         for (int i = 0; i < words.size(); i++) {
             String word = words.get(i);
@@ -310,14 +322,12 @@ public class ChatService {
                 if (!excluded.contains(item)) {
                     excluded.add(item);
                 }
-            } else if (wanted == null) {
-                wanted = item;
+            } else if (!wanted.contains(item)) {
+                wanted.add(item);
             }
         }
         // «ужасы? нет, только не ужасы» — отрицание важнее
-        if (excluded.contains(wanted)) {
-            wanted = null;
-        }
+        wanted.removeAll(excluded);
         return new Mentions<>(wanted, excluded);
     }
 
