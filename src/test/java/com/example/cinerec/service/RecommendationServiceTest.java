@@ -65,7 +65,7 @@ class RecommendationServiceTest {
 
         assertEquals(10, service.recommend(null, COMEDY, null).size());
         // Для чата («ещё») — все подходящие фильмы
-        assertEquals(15, service.rank(null, Set.of(COMEDY), Set.of(), Set.of(), Set.of()).size());
+        assertEquals(15, service.rank(new Criteria(null, Set.of(COMEDY), Set.of(), Set.of(), Set.of(), null, null)).size());
     }
 
     @Test
@@ -75,7 +75,7 @@ class RecommendationServiceTest {
                 movie("Весёлый сериал", 8.0, SERIES, COMEDY, FUNNY),  // исключён тип
                 movie("Весёлая комедия", 7.0, FILM, COMEDY, FUNNY)));
 
-        List<Recommendation> result = service.rank(FUNNY, Set.of(), Set.of(), Set.of(DRAMA), Set.of(SERIES));
+        List<Recommendation> result = service.rank(new Criteria(FUNNY, Set.of(), Set.of(), Set.of(DRAMA), Set.of(SERIES), null, null));
 
         assertEquals(List.of("Весёлая комедия"), titles(result));
     }
@@ -88,12 +88,12 @@ class RecommendationServiceTest {
                 movie("Драма-сериал", 9.0, SERIES, DRAMA, SAD)));  // жанр: 2
 
         // «комедию или драму, лучше фильм»
-        List<Recommendation> result = service.rank(null, Set.of(COMEDY, DRAMA), Set.of(FILM), Set.of(), Set.of());
+        List<Recommendation> result = service.rank(new Criteria(null, Set.of(COMEDY, DRAMA), Set.of(FILM), Set.of(), Set.of(), null, null));
         assertEquals(List.of("Драма-фильм", "Драма-сериал", "Комедия-сериал"), titles(result));
         assertEquals(List.of(3, 2, 2), result.stream().map(Recommendation::score).toList());
 
         // «фильм или сериал» — тип любого из них даёт балл
-        assertEquals(3, service.rank(null, Set.of(), Set.of(FILM, SERIES), Set.of(), Set.of()).size());
+        assertEquals(3, service.rank(new Criteria(null, Set.of(), Set.of(FILM, SERIES), Set.of(), Set.of(), null, null)).size());
     }
 
     @Test
@@ -103,7 +103,27 @@ class RecommendationServiceTest {
         assertTrue(service.recommend(null, null, null).isEmpty());
     }
 
+    @Test
+    void yearsFilterMoviesAndAloneGiveAllMoviesOfThoseYears() {
+        when(repository.findAllWithDetails()).thenReturn(List.of(
+                movie("Комедия 1985", 9.0, FILM, COMEDY, FUNNY, 1985),
+                movie("Драма 1994", 8.0, FILM, DRAMA, SAD, 1994),
+                movie("Комедия 1997", 7.0, FILM, COMEDY, FUNNY, 1997)));
+
+        // «весёлое из 90-х»: комедия 1985 года не подходит по годам
+        List<Recommendation> funny90s = service.rank(new Criteria(FUNNY, Set.of(), Set.of(), Set.of(), Set.of(), 1990, 1999));
+        assertEquals(List.of("Комедия 1997"), titles(funny90s));
+
+        // «что-нибудь из 90-х»: только годы — все фильмы этих лет по рейтингу
+        List<Recommendation> any90s = service.rank(new Criteria(null, Set.of(), Set.of(), Set.of(), Set.of(), 1990, 1999));
+        assertEquals(List.of("Драма 1994", "Комедия 1997"), titles(any90s));
+    }
+
     private static Movie movie(String title, double rating, long typeId, long genreId, long moodId) {
+        return movie(title, rating, typeId, genreId, moodId, 2000);
+    }
+
+    private static Movie movie(String title, double rating, long typeId, long genreId, long moodId, int year) {
         MovieType type = new MovieType();
         type.setId(typeId);
         Genre genre = new Genre();
@@ -113,6 +133,7 @@ class RecommendationServiceTest {
 
         Movie movie = new Movie();
         movie.setTitle(title);
+        movie.setYear(year);
         movie.setRating(rating);
         movie.setType(type);
         movie.setGenres(Set.of(genre));

@@ -23,4 +23,8 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     @EntityGraph(attributePaths = {"type", "genres", "moods"})
     @Query("select m from Movie m")
     List<Movie> findAllWithDetails();
+
+    // Год самого нового фильма — от него чат отсчитывает «новое» и «старое» (null, если фильмов нет)
+    @Query("select max(m.year) from Movie m")
+    Integer findNewestYear();
 }
