@@ -8,7 +8,9 @@ import com.example.cinerec.ml.ChatMoodPredictor;
 import com.example.cinerec.ml.MoodSuggestion;
 import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
+import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.service.Criteria;
 import com.example.cinerec.service.Recommendation;
 import com.example.cinerec.service.RecommendationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,10 +41,11 @@ class ChatServiceTest {
     private final MoodRepository moodRepository = mock(MoodRepository.class);
     private final GenreRepository genreRepository = mock(GenreRepository.class);
     private final MovieTypeRepository typeRepository = mock(MovieTypeRepository.class);
+    private final MovieRepository movieRepository = mock(MovieRepository.class);
     private final RecommendationService recommendationService = mock(RecommendationService.class);
 
     private final ChatService chat = new ChatService(
-            predictor, moodRepository, genreRepository, typeRepository, recommendationService);
+            predictor, moodRepository, genreRepository, typeRepository, movieRepository, recommendationService);
 
     @BeforeEach
     void setUp() {
@@ -54,17 +57,17 @@ class ChatServiceTest {
                 genre(SCI_FI, "фантастика"), genre(ADVENTURE, "приключения"),
                 genre(WESTERN, "вестерн"))); // вестерна нет в KEYWORDS — ищется по основе слова
         when(typeRepository.findAll()).thenReturn(List.of(type(FILM, "фильм"), type(CARTOON, "мультфильм")));
-        when(recommendationService.rank(any(), any(), any(), any(), any())).thenReturn(List.of());
+        when(recommendationService.rank(any())).thenReturn(List.of());
     }
 
     @Test
     void understandsMoodGenreAndTypeAndShowsFiveMovies() {
         modelSays("весёлое", 0.87);
-        when(recommendationService.rank(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(), Set.of())).thenReturn(recommendations(8));
+        when(recommendationService.rank(criteria(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(), Set.of()))).thenReturn(recommendations(8));
 
         ChatReply reply = chat.reply("Хочу посмеяться, посоветуй комедию, лучше мультик");
 
-        verify(recommendationService).rank(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(), Set.of());
+        verify(recommendationService).rank(criteria(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(), Set.of()));
         assertTrue(reply.text().contains("настроение: весёлое (уверенность 87%)"));
         assertTrue(reply.text().contains("жанр: комедия"));
         assertTrue(reply.text().contains("тип: мультфильм"));
@@ -78,7 +81,7 @@ class ChatServiceTest {
 
         ChatReply reply = chat.reply("посоветуй ужастик");
 
-        verify(recommendationService).rank(null, Set.of(HORROR), Set.of(), Set.of(), Set.of());
+        verify(recommendationService).rank(criteria(null, Set.of(HORROR), Set.of(), Set.of(), Set.of()));
         assertTrue(reply.text().contains("настроение: не определено"));
         assertTrue(reply.text().contains("жанр: ужасы"));
     }
@@ -89,7 +92,7 @@ class ChatServiceTest {
 
         ChatReply reply = chat.reply("хочу мрачную комедию");
 
-        verify(recommendationService).rank(null, Set.of(COMEDY), Set.of(), Set.of(), Set.of());
+        verify(recommendationService).rank(criteria(null, Set.of(COMEDY), Set.of(), Set.of(), Set.of()));
         assertTrue(reply.text().contains("Настроения «мрачное» нет в базе"));
     }
 
@@ -97,7 +100,7 @@ class ChatServiceTest {
     void nothingUnderstoodAsksToRephraseWithExamples() {
         ChatReply reply = chat.reply("ну такое");
 
-        verify(recommendationService, never()).rank(any(), any(), any(), any(), any());
+        verify(recommendationService, never()).rank(any());
         assertTrue(reply.text().contains("Опишите иначе"));
         assertTrue(reply.text().contains("«хочу посмеяться»"));
         assertTrue(reply.movies().isEmpty());
@@ -110,7 +113,7 @@ class ChatServiceTest {
         assertTrue(chat.reply("спасибо большое)").text().startsWith("Пожалуйста"));
 
         verify(predictor, never()).predict(anyString());
-        verify(recommendationService, never()).rank(any(), any(), any(), any(), any());
+        verify(recommendationService, never()).rank(any());
     }
 
     @Test
@@ -145,7 +148,7 @@ class ChatServiceTest {
 
         ChatReply reply = chat.reply("хочу посмеяться, только не ужасы и не хочу мультики");
 
-        verify(recommendationService).rank(FUNNY, Set.of(), Set.of(), Set.of(HORROR), Set.of(CARTOON));
+        verify(recommendationService).rank(criteria(FUNNY, Set.of(), Set.of(), Set.of(HORROR), Set.of(CARTOON)));
         assertTrue(reply.text().contains("жанр: любой"));
         assertTrue(reply.text().contains("кроме: ужасы, мультфильм"));
     }
@@ -154,20 +157,20 @@ class ChatServiceTest {
     void severalGenresAndTypesAreAllUsed() {
         ChatReply reply = chat.reply("посоветуй фантастику или комедию, фильм или мультик");
 
-        verify(recommendationService).rank(null, Set.of(SCI_FI, COMEDY), Set.of(FILM, CARTOON), Set.of(), Set.of());
+        verify(recommendationService).rank(criteria(null, Set.of(SCI_FI, COMEDY), Set.of(FILM, CARTOON), Set.of(), Set.of()));
         assertTrue(reply.text().contains("жанр: комедия или фантастика"));
         assertTrue(reply.text().contains("тип: фильм или мультфильм"));
     }
 
     @Test
     void refinementReplacesGenresOrRemovesExcludedOne() {
-        ChatContext previous = new ChatContext(FUNNY, Set.of(COMEDY, SCI_FI), Set.of(), Set.of(), Set.of(), List.of());
+        ChatContext previous = new ChatContext(criteria(FUNNY, Set.of(COMEDY, SCI_FI), Set.of(), Set.of(), Set.of()), List.of());
 
         chat.reply("а теперь приключения", previous);
-        verify(recommendationService).rank(FUNNY, Set.of(ADVENTURE), Set.of(), Set.of(), Set.of());
+        verify(recommendationService).rank(criteria(FUNNY, Set.of(ADVENTURE), Set.of(), Set.of(), Set.of()));
 
         chat.reply("только не комедии", previous);
-        verify(recommendationService).rank(FUNNY, Set.of(SCI_FI), Set.of(), Set.of(COMEDY), Set.of());
+        verify(recommendationService).rank(criteria(FUNNY, Set.of(SCI_FI), Set.of(), Set.of(COMEDY), Set.of()));
     }
 
     @Test
@@ -188,7 +191,7 @@ class ChatServiceTest {
     void onlyExclusionsAskWhatToWatch() {
         ChatReply reply = chat.reply("только не ужасы");
 
-        verify(recommendationService, never()).rank(any(), any(), any(), any(), any());
+        verify(recommendationService, never()).rank(any());
         assertTrue(reply.text().startsWith("Понял, что не хотите: ужасы."));
         assertTrue(reply.movies().isEmpty());
     }
@@ -196,7 +199,7 @@ class ChatServiceTest {
     @Test
     void moreShowsNextMoviesWithoutRepeats() {
         modelSays("весёлое", 0.87);
-        when(recommendationService.rank(FUNNY, Set.of(COMEDY), Set.of(), Set.of(), Set.of())).thenReturn(recommendations(8));
+        when(recommendationService.rank(criteria(FUNNY, Set.of(COMEDY), Set.of(), Set.of(), Set.of()))).thenReturn(recommendations(8));
 
         ChatReply first = chat.reply("хочу посмеяться, комедию");
         assertEquals(List.of(0L, 1L, 2L, 3L, 4L), first.context().shownMovieIds());
@@ -222,11 +225,11 @@ class ChatServiceTest {
 
     @Test
     void refinementChangesOnlyNewConditions() {
-        ChatContext previous = new ChatContext(FUNNY, Set.of(COMEDY), Set.of(FILM), Set.of(HORROR), Set.of(), List.of(0L, 1L));
+        ChatContext previous = new ChatContext(criteria(FUNNY, Set.of(COMEDY), Set.of(FILM), Set.of(HORROR), Set.of()), List.of(0L, 1L));
 
         ChatReply reply = chat.reply("а мультик?", previous);
 
-        verify(recommendationService).rank(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(HORROR), Set.of());
+        verify(recommendationService).rank(criteria(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(HORROR), Set.of()));
         assertTrue(reply.text().contains("настроение: весёлое"));
         assertTrue(reply.text().contains("тип: мультфильм"));
         assertTrue(reply.context().shownMovieIds().isEmpty()); // новые условия — показ заново
@@ -234,22 +237,81 @@ class ChatServiceTest {
 
     @Test
     void refinementWithExclusionRemovesPreviousWish() {
-        ChatContext previous = new ChatContext(FUNNY, Set.of(HORROR), Set.of(), Set.of(), Set.of(), List.of());
+        ChatContext previous = new ChatContext(criteria(FUNNY, Set.of(HORROR), Set.of(), Set.of(), Set.of()), List.of());
         modelSays("грустное", 0.9); // по слову «ужасы» модель угадала бы настроение — её не спрашиваем
 
         chat.reply("только не ужасы, пожалуйста", previous);
 
         verify(predictor, never()).predict(anyString());
-        verify(recommendationService).rank(FUNNY, Set.of(), Set.of(), Set.of(HORROR), Set.of());
+        verify(recommendationService).rank(criteria(FUNNY, Set.of(), Set.of(), Set.of(HORROR), Set.of()));
     }
 
     @Test
     void newRequestWithoutRefineWordStartsOver() {
-        ChatContext previous = new ChatContext(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(), Set.of(), List.of());
+        ChatContext previous = new ChatContext(criteria(FUNNY, Set.of(COMEDY), Set.of(CARTOON), Set.of(), Set.of()), List.of());
 
         chat.reply("посоветуй ужастик", previous);
 
-        verify(recommendationService).rank(null, Set.of(HORROR), Set.of(), Set.of(), Set.of());
+        verify(recommendationService).rank(criteria(null, Set.of(HORROR), Set.of(), Set.of(), Set.of()));
+    }
+
+    @Test
+    void yearsAreUnderstoodInDifferentForms() {
+        assertEquals(new YearRange(1990, 1999), years("комедии 90-х"));
+        assertEquals(new YearRange(1980, 1989), years("что-нибудь из 1980-х"));
+        assertEquals(new YearRange(2000, 2009), years("сериалы 2000-х")); // не «2000 год»
+        assertEquals(new YearRange(2000, 2009), years("фильмы нулевых"));
+        assertEquals(new YearRange(1990, 1999), years("кино девяностых"));
+        assertEquals(new YearRange(2011, null), years("снятое после 2010"));
+        assertEquals(new YearRange(1990, 1999), years("с 1990 по 1999"));
+        assertEquals(new YearRange(null, 1999), years("до 2000 года"));
+        assertEquals(new YearRange(1994, 1994), years("фильм 1994 года"));
+        assertEquals(new YearRange(1994, 1994), years("1994"));
+        // «новое» и «старое» — от самого нового фильма в базе (2020)
+        assertEquals(new YearRange(2011, null), years("что-нибудь новое"));
+        assertEquals(new YearRange(null, 1990), years("старое доброе кино"));
+        assertEquals(new YearRange(2011, null), years("только не старое"));
+        assertNull(years("фильм на новый год"));
+        assertNull(years("хочу посмеяться"));
+    }
+
+    @Test
+    void yearsFilterRecommendations() {
+        when(movieRepository.findNewestYear()).thenReturn(2020);
+        modelSays("весёлое", 0.9);
+
+        ChatReply reply = chat.reply("хочу новую комедию");
+
+        verify(recommendationService).rank(new Criteria(FUNNY, Set.of(COMEDY), Set.of(), Set.of(), Set.of(), 2011, null));
+        assertTrue(reply.text().contains("годы: не раньше 2011"));
+    }
+
+    @Test
+    void onlyYearsAreEnoughToRecommend() {
+        ChatReply reply = chat.reply("что-нибудь из 90-х");
+
+        verify(recommendationService).rank(new Criteria(null, Set.of(), Set.of(), Set.of(), Set.of(), 1990, 1999));
+        assertTrue(reply.text().contains("годы: 1990–1999"));
+        verify(movieRepository, never()).findNewestYear(); // самый новый год нужен только для «новое» и «старое»
+    }
+
+    @Test
+    void yearsRefinePreviousRequest() {
+        ChatContext previous = new ChatContext(criteria(FUNNY, Set.of(COMEDY), Set.of(), Set.of(), Set.of()), List.of());
+
+        chat.reply("а из 90-х?", previous);
+
+        verify(recommendationService).rank(new Criteria(FUNNY, Set.of(COMEDY), Set.of(), Set.of(), Set.of(), 1990, 1999));
+    }
+
+    private static YearRange years(String message) {
+        return YearRange.parse(message, ChatService.words(message), () -> 2020);
+    }
+
+    /** Условия без годов. */
+    private static Criteria criteria(Long moodId, Set<Long> genreIds, Set<Long> typeIds,
+                                     Set<Long> excludedGenreIds, Set<Long> excludedTypeIds) {
+        return new Criteria(moodId, genreIds, typeIds, excludedGenreIds, excludedTypeIds, null, null);
     }
 
     private static List<String> titles(ChatReply reply) {

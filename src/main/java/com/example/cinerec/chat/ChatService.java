@@ -8,7 +8,9 @@ import com.example.cinerec.ml.ChatMoodPredictor;
 import com.example.cinerec.ml.MoodSuggestion;
 import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
+import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.service.Criteria;
 import com.example.cinerec.service.Recommendation;
 import com.example.cinerec.service.RecommendationService;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ import java.util.stream.Stream;
  * - настроение — моделью для чата (если она уверена хотя бы на MOOD_THRESHOLD);
  * - жанр и тип — по словам из KEYWORDS или по основе слова из таблиц genre и type («комедию» → комедия);
  * - что смотреть НЕ нужно — жанры и типы с отрицанием перед ними («только не ужасы»);
+ * - годы выпуска — «из 90-х», «после 2010», «что-нибудь новое» (см. YearRange);
  * затем подбирает фильмы через RecommendationService и собирает ответ по шаблону.
  */
 @Service
@@ -103,17 +106,20 @@ public class ChatService {
     private final MoodRepository moodRepository;
     private final GenreRepository genreRepository;
     private final MovieTypeRepository typeRepository;
+    private final MovieRepository movieRepository;
     private final RecommendationService recommendationService;
 
     public ChatService(ChatMoodPredictor moodPredictor,
                        MoodRepository moodRepository,
                        GenreRepository genreRepository,
                        MovieTypeRepository typeRepository,
+                       MovieRepository movieRepository,
                        RecommendationService recommendationService) {
         this.moodPredictor = moodPredictor;
         this.moodRepository = moodRepository;
         this.genreRepository = genreRepository;
         this.typeRepository = typeRepository;
+        this.movieRepository = movieRepository;
         this.recommendationService = recommendationService;
     }
 
@@ -128,14 +134,15 @@ public class ChatService {
         List<String> words = words(message);
 
         // 1. Приветствие и «спасибо» — короткий ответ без подбора
-        if (words.isEmpty()) {
+        // Сообщение из одних цифр («1994») словами не считается, но в нём может быть год
+        if (words.isEmpty() && (message == null || !message.matches("(?s).*\\d.*"))) {
             return ChatReply.textOnly("Напишите, что хотите посмотреть. " + EXAMPLES);
         }
         if (words.stream().anyMatch(THANKS_WORDS::contains)
                 && words.stream().allMatch(w -> THANKS_WORDS.contains(w) || THANKS_FILLER.contains(w))) {
             return ChatReply.textOnly("Пожалуйста! Обращайтесь, если захотите ещё что-нибудь посмотреть.");
         }
-        if (words.stream().allMatch(GREETING_WORDS::contains)) {
+        if (!words.isEmpty() && words.stream().allMatch(GREETING_WORDS::contains)) {
             return ChatReply.textOnly("Привет! Расскажите, какое у вас настроение или что хочется посмотреть.");
         }
 
@@ -159,9 +166,10 @@ public class ChatService {
         List<MovieType> allTypes = typeRepository.findAll();
         Mentions<Genre> genres = findInMessage(words, allGenres, Genre::getName);
         Mentions<MovieType> types = findInMessage(words, allTypes, MovieType::getName);
+        YearRange years = YearRange.parse(message, words, movieRepository::findNewestYear);
         // В сообщении из одних запретов («только не мелодрамы») настроения нет, а модель
         // по названию жанра уверенно угадала бы его («мелодрамы» → грустное) — её не спрашиваем
-        boolean justExclusions = words.stream().allMatch(w -> EXCLUSION_FILLER.contains(w)
+        boolean justExclusions = years == null && words.stream().allMatch(w -> EXCLUSION_FILLER.contains(w)
                 || NEGATIONS.contains(w) || NEGATED_VERBS.contains(w)
                 || genres.excluded().stream().anyMatch(g -> matches(w, normalize(g.getName())))
                 || types.excluded().stream().anyMatch(t -> matches(w, normalize(t.getName()))));
@@ -169,16 +177,18 @@ public class ChatService {
                 .filter(p -> p.probability() >= MOOD_THRESHOLD)
                 .orElse(null);
 
-        boolean onlyExclusions = mood == null && genres.wanted().isEmpty() && types.wanted().isEmpty();
-        if (onlyExclusions && genres.excluded().isEmpty() && types.excluded().isEmpty()) {
+        // Ни настроения, ни нужных жанров и типов — только запреты и/или годы
+        boolean noWishes = mood == null && genres.wanted().isEmpty() && types.wanted().isEmpty();
+        if (noWishes && years == null && genres.excluded().isEmpty() && types.excluded().isEmpty()) {
             return ChatReply.textOnly("Не совсем понял, что вам хочется посмотреть. Опишите иначе. " + EXAMPLES);
         }
 
-        // 4. Уточнение прошлого запроса («а сериал», «лучше мультик», «только не ужасы»):
+        // 4. Уточнение прошлого запроса («а сериал», «лучше мультик», «только не ужасы», «из 90-х»):
         //    новые условия заменяют прежние, остальные остаются. Иначе подбор начинается заново.
         boolean refine = context != null
-                && (REFINE_FIRST_WORDS.contains(words.get(0)) || words.contains("теперь") || onlyExclusions);
-        ChatContext base = refine ? context : ChatContext.EMPTY;
+                && (!words.isEmpty() && REFINE_FIRST_WORDS.contains(words.get(0))
+                    || words.contains("теперь") || noWishes);
+        Criteria base = refine ? context.criteria() : Criteria.ANY;
 
         // Настроение модели ищем в таблице mood по названию — его могли переименовать или удалить в админке
         Mood moodInDb = mood == null ? null : allMoods.stream()
@@ -201,6 +211,9 @@ public class ChatService {
         excludedTypeIds.removeAll(idsOf(types.wanted(), MovieType::getId));
         genreIds.removeAll(excludedGenreIds);
         typeIds.removeAll(excludedTypeIds);
+        Integer yearFrom = years != null ? years.from() : base.yearFrom();
+        Integer yearTo = years != null ? years.to() : base.yearTo();
+        YearRange chosenYears = yearFrom == null && yearTo == null ? null : new YearRange(yearFrom, yearTo);
 
         // id из контекста могли устареть (запись удалили в админке) — такие не учитываются
         Mood moodChosen = moodId == null ? null
@@ -213,7 +226,8 @@ public class ChatService {
                 .collect(Collectors.joining(", "));
 
         boolean moodMissingInDb = mood != null && moodInDb == null;
-        boolean nothingWanted = moodChosen == null && chosenGenres.isEmpty() && chosenTypes.isEmpty();
+        boolean nothingWanted = moodChosen == null && chosenGenres.isEmpty() && chosenTypes.isEmpty()
+                && chosenYears == null;
         if (nothingWanted && !moodMissingInDb) {
             return ChatReply.textOnly("Понял, что не хотите: " + excluded
                     + ". А что хочется посмотреть? " + EXAMPLES);
@@ -224,6 +238,9 @@ public class ChatService {
                 : moodChosen != null ? moodChosen.getName() : "не определено").append('\n');
         text.append("• жанр: ").append(namesOrAny(chosenGenres, Genre::getName)).append('\n');
         text.append("• тип: ").append(namesOrAny(chosenTypes, MovieType::getName)).append('\n');
+        if (chosenYears != null) {
+            text.append("• годы: ").append(chosenYears.describe()).append('\n');
+        }
         if (!excluded.isEmpty()) {
             text.append("• кроме: ").append(excluded).append('\n');
         }
@@ -237,21 +254,20 @@ public class ChatService {
         }
 
         // 5. Подбор существующим сервисом: те же баллы, что и в форме подбора
-        return showMovies(new ChatContext(
-                moodChosen == null ? null : moodChosen.getId(),
+        Criteria criteria = new Criteria(moodChosen == null ? null : moodChosen.getId(),
                 idsOf(chosenGenres, Genre::getId), idsOf(chosenTypes, MovieType::getId),
-                excludedGenreIds, excludedTypeIds, List.of()), text, false);
+                excludedGenreIds, excludedTypeIds, yearFrom, yearTo);
+        return showMovies(new ChatContext(criteria, List.of()), text, false);
     }
 
     /**
      * Следующие MAX_MOVIES фильмов по условиям контекста, которые ещё не показывались.
      * В ответе — новый контекст, где к показанным добавлены эти фильмы.
      */
-    private ChatReply showMovies(ChatContext criteria, StringBuilder text, boolean more) {
-        List<Movie> remaining = recommendationService.rank(criteria.moodId(), criteria.genreIds(),
-                        criteria.typeIds(), criteria.excludedGenreIds(), criteria.excludedTypeIds()).stream()
+    private ChatReply showMovies(ChatContext context, StringBuilder text, boolean more) {
+        List<Movie> remaining = recommendationService.rank(context.criteria()).stream()
                 .map(Recommendation::movie)
-                .filter(m -> !criteria.shownMovieIds().contains(m.getId()))
+                .filter(m -> !context.shownMovieIds().contains(m.getId()))
                 .toList();
         List<Movie> movies = remaining.stream().limit(MAX_MOVIES).toList();
 
@@ -266,11 +282,10 @@ public class ChatService {
             text.append(':');
         }
 
-        List<Long> shown = Stream.concat(criteria.shownMovieIds().stream(), movies.stream().map(Movie::getId))
+        List<Long> shown = Stream.concat(context.shownMovieIds().stream(), movies.stream().map(Movie::getId))
                 .toList();
-        ChatContext next = new ChatContext(criteria.moodId(), criteria.genreIds(), criteria.typeIds(),
-                criteria.excludedGenreIds(), criteria.excludedTypeIds(), shown);
-        return new ChatReply(text.toString(), movies.stream().map(ChatMovie::from).toList(), next);
+        return new ChatReply(text.toString(), movies.stream().map(ChatMovie::from).toList(),
+                new ChatContext(context.criteria(), shown));
     }
 
     /** Просьба показать ещё фильмы по прошлому запросу: «ещё», «покажи другие», «а что-нибудь ещё есть?». */

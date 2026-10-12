@@ -14,7 +14,8 @@ import java.util.Set;
  * совпало настроение +3, жанр +2, тип +1.
  * Возвращаются первые 10 фильмов с баллом больше нуля;
  * при равных баллах выше фильм с более высоким рейтингом.
- * Фильмы исключённых жанров и типов не предлагаются совсем (чат: «только не ужасы»).
+ * Фильмы исключённых жанров и типов и фильмы других лет не предлагаются совсем
+ * (чат: «только не ужасы», «что-нибудь из 90-х»).
  */
 @Service
 public class RecommendationService {
@@ -36,40 +37,36 @@ public class RecommendationService {
      * @param typeId  выбранный тип или null
      */
     public List<Recommendation> recommend(Long moodId, Long genreId, Long typeId) {
-        return rank(moodId, idSet(genreId), idSet(typeId), Set.of(), Set.of()).stream().limit(LIMIT).toList();
+        Criteria criteria = new Criteria(moodId, idSet(genreId), idSet(typeId), Set.of(), Set.of(), null, null);
+        return rank(criteria).stream().limit(LIMIT).toList();
     }
 
     /**
-     * Все фильмы с баллом больше нуля в порядке подбора, без ограничения LIMIT —
-     * чат показывает их по частям («ещё»).
-     * Жанров и типов может быть несколько («комедию или мелодраму»): баллы за жанр даются,
-     * если у фильма есть любой из них, за тип — если фильм любого из типов.
-     *
-     * @param genreIds         нужные жанры (пустой набор — любой)
-     * @param typeIds          нужные типы (пустой набор — любой)
-     * @param excludedGenreIds жанры, фильмы которых не нужно предлагать
-     * @param excludedTypeIds  типы, которые не нужно предлагать
+     * Все подходящие фильмы в порядке подбора, без ограничения LIMIT — чат показывает их по частям («ещё»).
+     * Подходят фильмы с баллом больше нуля. Если заданы только годы, без настроения, жанров и типов
+     * («что-нибудь из 90-х»), подходят все фильмы этих лет — они идут по рейтингу.
      */
-    public List<Recommendation> rank(Long moodId, Set<Long> genreIds, Set<Long> typeIds,
-                                     Set<Long> excludedGenreIds, Set<Long> excludedTypeIds) {
+    public List<Recommendation> rank(Criteria criteria) {
         List<Recommendation> result = new ArrayList<>();
+        boolean onlyYears = !criteria.hasWishes() && criteria.hasYears();
 
         for (Movie movie : movieRepository.findAllWithDetails()) {
-            if (excludedTypeIds.contains(movie.getType().getId())
-                    || movie.getGenres().stream().anyMatch(g -> excludedGenreIds.contains(g.getId()))) {
+            if (!criteria.yearFits(movie.getYear())
+                    || criteria.excludedTypeIds().contains(movie.getType().getId())
+                    || movie.getGenres().stream().anyMatch(g -> criteria.excludedGenreIds().contains(g.getId()))) {
                 continue;
             }
-            boolean moodMatched = moodId != null
-                    && movie.getMoods().stream().anyMatch(m -> m.getId().equals(moodId));
-            boolean genreMatched = movie.getGenres().stream().anyMatch(g -> genreIds.contains(g.getId()));
-            boolean typeMatched = typeIds.contains(movie.getType().getId());
+            boolean moodMatched = criteria.moodId() != null
+                    && movie.getMoods().stream().anyMatch(m -> m.getId().equals(criteria.moodId()));
+            boolean genreMatched = movie.getGenres().stream().anyMatch(g -> criteria.genreIds().contains(g.getId()));
+            boolean typeMatched = criteria.typeIds().contains(movie.getType().getId());
 
             int score = 0;
             if (moodMatched) score += MOOD_POINTS;
             if (genreMatched) score += GENRE_POINTS;
             if (typeMatched) score += TYPE_POINTS;
 
-            if (score > 0) {
+            if (score > 0 || onlyYears) {
                 result.add(new Recommendation(movie, score, moodMatched, genreMatched, typeMatched));
             }
         }
