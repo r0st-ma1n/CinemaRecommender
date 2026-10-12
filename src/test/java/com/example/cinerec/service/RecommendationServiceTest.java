@@ -65,7 +65,7 @@ class RecommendationServiceTest {
 
         assertEquals(10, service.recommend(null, COMEDY, null).size());
         // Для чата («ещё») — все подходящие фильмы
-        assertEquals(15, service.rank(null, COMEDY, null, Set.of(), Set.of()).size());
+        assertEquals(15, service.rank(null, Set.of(COMEDY), Set.of(), Set.of(), Set.of()).size());
     }
 
     @Test
@@ -75,9 +75,25 @@ class RecommendationServiceTest {
                 movie("Весёлый сериал", 8.0, SERIES, COMEDY, FUNNY),  // исключён тип
                 movie("Весёлая комедия", 7.0, FILM, COMEDY, FUNNY)));
 
-        List<Recommendation> result = service.rank(FUNNY, null, null, Set.of(DRAMA), Set.of(SERIES));
+        List<Recommendation> result = service.rank(FUNNY, Set.of(), Set.of(), Set.of(DRAMA), Set.of(SERIES));
 
         assertEquals(List.of("Весёлая комедия"), titles(result));
+    }
+
+    @Test
+    void anyOfSeveralGenresAndTypesGivesPoints() {
+        when(repository.findAllWithDetails()).thenReturn(List.of(
+                movie("Комедия-сериал", 7.0, SERIES, COMEDY, SAD), // жанр: 2
+                movie("Драма-фильм", 8.0, FILM, DRAMA, SAD),       // жанр и тип: 2 + 1 = 3
+                movie("Драма-сериал", 9.0, SERIES, DRAMA, SAD)));  // жанр: 2
+
+        // «комедию или драму, лучше фильм»
+        List<Recommendation> result = service.rank(null, Set.of(COMEDY, DRAMA), Set.of(FILM), Set.of(), Set.of());
+        assertEquals(List.of("Драма-фильм", "Драма-сериал", "Комедия-сериал"), titles(result));
+        assertEquals(List.of(3, 2, 2), result.stream().map(Recommendation::score).toList());
+
+        // «фильм или сериал» — тип любого из них даёт балл
+        assertEquals(3, service.rank(null, Set.of(), Set.of(FILM, SERIES), Set.of(), Set.of()).size());
     }
 
     @Test
