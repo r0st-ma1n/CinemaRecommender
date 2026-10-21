@@ -1,0 +1,9 @@
+.git
+.idea
+*.iml
+.env
+target
+frontend
+ml/*.model
+Отчёт
+Examples

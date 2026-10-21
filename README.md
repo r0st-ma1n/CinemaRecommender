@@ -17,7 +17,21 @@
 Java 21, Spring Boot 3.5 (Web, Data JPA, Security, Thymeleaf, Validation), PostgreSQL 16, Flyway, Maven,
 Bootstrap 5, Weka 3.8. Фронтенд: React 19, TypeScript, Vite, Tailwind CSS.
 
-## Что нужно установить
+## Быстрый старт в Docker
+
+Нужен только Docker. Создайте в корне проекта файл `.env` (см. ниже, шаг 1) и выполните:
+
+```bash
+docker compose up --build
+```
+
+- <http://localhost:3000> — фронтенд на React;
+- <http://localhost:8080> — страницы Thymeleaf и REST API.
+
+Поднимутся три контейнера: PostgreSQL, бэкенд и nginx с фронтендом (он же передаёт запросы `/api` бэкенду).
+Модели Weka обучаются при сборке образа бэкенда, поэтому первая сборка занимает несколько минут.
+
+## Что нужно установить для разработки
 
 - **JDK 21 или новее** (на более старых JDK проект не соберётся). Переменная `JAVA_HOME` должна указывать на JDK.
 - **Docker Desktop** — для базы PostgreSQL. Можно и без Docker, если PostgreSQL уже установлен (см. ниже).
@@ -43,10 +57,10 @@ ADMIN_PASSWORD=придумайте-пароль
 ### 2. База данных
 
 ```bash
-docker compose up -d
+docker compose up -d db
 ```
 
-Docker поднимет PostgreSQL с пустой базой `cinerec`, взяв логин и пароль из `.env`.
+Docker поднимет только PostgreSQL с пустой базой `cinerec`, взяв логин и пароль из `.env`.
 Таблицы и начальные данные (60 фильмов) создаст само приложение при первом запуске — через Flyway.
 
 > Если PostgreSQL установлен без Docker, создайте базу `cinerec` вручную (`CREATE DATABASE cinerec;`).
@@ -172,7 +186,9 @@ src/main/resources/
 └── application.properties
 ml/training-data.csv обучающий набор для админки: 242 фильма (название;настроение;жанры;описание)
 ml/chat-training-data.csv  обучающий набор для чата: 600 фраз (настроение;фраза)
-docker-compose.yml   PostgreSQL для разработки
+docker-compose.yml   PostgreSQL, бэкенд и фронтенд (для разработки — только db)
+Dockerfile           образ бэкенда: сборка, обучение моделей, JRE
+frontend/Dockerfile  образ фронтенда: сборка Vite и nginx (frontend/nginx.conf)
 ```
 
 ## База данных
@@ -185,8 +201,8 @@ docker-compose.yml   PostgreSQL для разработки
 сделанные в админке, при перезапуске не теряются. Чтобы вернуть базу к начальному состоянию:
 
 ```bash
-docker compose down -v   # удалит контейнер вместе с данными
-docker compose up -d
+docker compose down -v   # удалит контейнеры вместе с данными
+docker compose up -d db
 ```
 
 Постеров в начальных данных нет — вместо них показывается заглушка. Ссылку на постер можно добавить в админке.
