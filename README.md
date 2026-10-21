@@ -1,5 +1,7 @@
 # CinemaRecommender
 
+[![CI](https://github.com/r0st-ma1n/CinemaRecommender/actions/workflows/ci.yml/badge.svg)](https://github.com/r0st-ma1n/CinemaRecommender/actions/workflows/ci.yml)
+
 Веб-приложение, которое подбирает фильмы, сериалы и мультфильмы по настроению, жанру и типу.
 
 - **Каталог** (`/`) и **страница фильма** (`/movies/{id}`).
