@@ -1,4 +1,5 @@
 import type {
+  AuthStatus,
   ChatReply,
   ChatRequest,
   Criteria,
@@ -19,6 +20,10 @@ export interface Api {
   getMoods(): Promise<DictionaryItem[]>;
   recommend(criteria: Criteria): Promise<Recommendation[]>;
   sendChat(request: ChatRequest): Promise<ChatReply>;
+
+  getAuth(): Promise<AuthStatus>;
+  login(username: string, password: string): Promise<AuthStatus>;
+  logout(): Promise<void>;
 
   createMovie(input: MovieInput): Promise<Movie>;
   updateMovie(id: number, input: MovieInput): Promise<Movie>;

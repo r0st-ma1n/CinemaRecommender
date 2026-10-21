@@ -6,6 +6,7 @@
 - **Подбор** (`/recommend`): за совпадение настроения фильм получает +3 балла, жанра +2, типа +1.
   Показываются первые 10 фильмов с баллом больше нуля; при равных баллах выше фильм с более высоким рейтингом.
 - **Админка** (`/admin`): добавление, изменение и удаление фильмов, жанров и настроений.
+  Вход по логину и паролю администратора (Spring Security).
   Все страницы читают данные из базы при каждом запросе, поэтому изменения видны сразу.
 - **Модель на Weka** по описанию и жанрам предлагает в админке одно-два самых вероятных настроения.
 - **Чат** (`/chat`): пользователь пишет обычной фразой («устал после работы, хочу мультик»),
@@ -13,7 +14,8 @@
 
 ## Стек
 
-Java 21, Spring Boot 3.5 (Web, Data JPA, Thymeleaf, Validation), PostgreSQL 16, Flyway, Maven, Bootstrap 5, Weka 3.8.
+Java 21, Spring Boot 3.5 (Web, Data JPA, Security, Thymeleaf, Validation), PostgreSQL 16, Flyway, Maven,
+Bootstrap 5, Weka 3.8. Фронтенд: React 19, TypeScript, Vite, Tailwind CSS.
 
 ## Что нужно установить
 
@@ -23,17 +25,20 @@ Java 21, Spring Boot 3.5 (Web, Data JPA, Thymeleaf, Validation), PostgreSQL 16, 
 
 ## Запуск
 
-### 1. Логин и пароль к базе
+### 1. Логины и пароли
 
 Создайте в корне проекта файл `.env` (он не попадает в git):
 
 ```
 DB_USERNAME=postgres
 DB_PASSWORD=postgres
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=придумайте-пароль
 ```
 
-Приложение берёт логин и пароль из переменных окружения `DB_USERNAME` и `DB_PASSWORD`.
-Можно также задать `DB_HOST` и `DB_PORT` (по умолчанию `localhost:5432`).
+Приложение берёт их из переменных окружения: `DB_USERNAME` и `DB_PASSWORD` — для базы,
+`ADMIN_USERNAME` и `ADMIN_PASSWORD` — для входа в админку (без `ADMIN_PASSWORD` приложение не запустится;
+логин по умолчанию `admin`). Можно также задать `DB_HOST` и `DB_PORT` (по умолчанию `localhost:5432`).
 
 ### 2. База данных
 
@@ -67,21 +72,21 @@ Docker поднимет PostgreSQL с пустой базой `cinerec`, взя�
 PowerShell (Windows):
 
 ```powershell
-$env:DB_USERNAME="postgres"; $env:DB_PASSWORD="postgres"
+$env:DB_USERNAME="postgres"; $env:DB_PASSWORD="postgres"; $env:ADMIN_PASSWORD="придумайте-пароль"
 .\mvnw.cmd spring-boot:run
 ```
 
 Git Bash / Linux / macOS:
 
 ```bash
-export DB_USERNAME=postgres DB_PASSWORD=postgres
+set -a; . ./.env; set +a     # взять переменные из .env
 ./mvnw spring-boot:run
 ```
 
 Откройте <http://localhost:8080>.
 
 **Из IntelliJ IDEA:** запустите `CinemaRecommenderApplication`, предварительно указав в
-Run Configuration → Environment variables: `DB_USERNAME=postgres;DB_PASSWORD=postgres`.
+Run Configuration → Environment variables: `DB_USERNAME=postgres;DB_PASSWORD=postgres;ADMIN_PASSWORD=...`.
 
 ### Тесты
 
@@ -120,7 +125,7 @@ npm test        # тесты Vitest + React Testing Library
 
 ## REST API
 
-Ошибки возвращаются как `{"message": "текст для пользователя"}` с кодом 400, 404, 409 или 503.
+Ошибки возвращаются как `{"message": "текст для пользователя"}` с кодом 400, 401, 403, 404, 409 или 503.
 
 | Метод и адрес | Что делает |
 |---|---|
@@ -131,6 +136,17 @@ npm test        # тесты Vitest + React Testing Library
 | `POST /api/admin/movies`, `PUT` и `DELETE /api/admin/movies/{id}` | добавление, изменение, удаление фильма |
 | `POST /api/admin/movies/suggest-moods` | подсказка настроений по описанию и жанрам |
 | `POST /api/admin/genres`, `PUT` и `DELETE /api/admin/genres/{id}` | жанры (так же `/api/admin/moods`) |
+| `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout` | кто вошёл, вход (форма `username`, `password`), выход |
+
+## Доступ
+
+Всё открыто, кроме админки: страницы `/admin/**` и адреса `/api/admin/**` доступны только администратору.
+Логин и пароль задаются в `.env`, в памяти хранится только хеш пароля (BCrypt).
+
+- **Страницы Thymeleaf:** гостя с `/admin` перенаправляет на форму входа `/login`, выход — кнопка «Выйти» в админке.
+- **API для React:** без входа `/api/admin/**` отвечает 401, вход и выход — через `/api/auth/*`, сессия в cookie.
+- **CSRF:** формы Thymeleaf отправляют токен сами; для API токен лежит в cookie `XSRF-TOKEN`,
+  фронтенд возвращает его в заголовке `X-XSRF-TOKEN`. Чат (`POST /api/chat`) ничего не меняет и токена не требует.
 
 ## Структура проекта
 
@@ -143,6 +159,7 @@ src/main/java/com/example/cinerec/
 ├── controller/      каталог, страница фильма, форма подбора, чат (ChatController)
 │   ├── admin/       админка: фильмы, жанры, настроения
 │   └── api/         REST API для фронтенда на React: контроллеры, DTO, обработка ошибок
+├── security/        доступ: SecurityConfig (правила, CSRF), AdminUserConfig (администратор), вход
 ├── form/            MovieForm — данные формы фильма с проверками
 └── ml/              модели настроений:
                      MoodModel (общие настройки), TrainModels (обучение обеих моделей),
@@ -276,7 +293,7 @@ docker compose up -d
 
 ## Ограничения
 
-- Админка не защищена паролем (Spring Security по условию задания не используется).
+- Администратор один и задаётся в `.env`; регистрации и ролей, кроме ADMIN, нет.
 - Рейтинги фильмов в начальных данных приблизительные.
 - Слово «фильм» в сообщении чата считается типом «фильм», поэтому в ответе на «посоветуй фильм…»
   фильмы получают +1 балл и оказываются выше сериалов и мультфильмов.

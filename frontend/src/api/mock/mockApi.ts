@@ -23,6 +23,10 @@ const db = {
 };
 let nextId = 1000;
 
+/** В режиме моков вход проверяется здесь же; логин и пароль подсказывает форма входа. */
+export const MOCK_ADMIN = { username: 'admin', password: 'admin' };
+let loggedInAs: string | null = null;
+
 /** Небольшая задержка, чтобы были видны состояния загрузки. */
 const delay = <T>(value: T, ms = 250): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
@@ -67,6 +71,19 @@ export const mockApi: Api = {
   getMoods: () => delay([...db.moods]),
   recommend: (criteria) => delay(recommend(allMovies(), criteria), 600),
   sendChat: (request) => delay(mockChatReply(request, allMovies(), db), 700),
+
+  getAuth: () => delay({ authenticated: loggedInAs != null, username: loggedInAs }),
+  login: (username, password) => {
+    if (username !== MOCK_ADMIN.username || password !== MOCK_ADMIN.password) {
+      return Promise.reject(new ApiError('Неверный логин или пароль', 401));
+    }
+    loggedInAs = username;
+    return delay({ authenticated: true, username });
+  },
+  logout: () => {
+    loggedInAs = null;
+    return delay(undefined);
+  },
 
   createMovie: (input) => {
     const stored = { ...input, id: nextId++ };

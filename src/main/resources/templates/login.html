@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Вход')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container mb-5" style="max-width: 24rem">
+    <h1 class="h3 mb-3">Вход в админку</h1>
+
+    <div th:if="${param.error}" class="alert alert-danger">Неверный логин или пароль</div>
+    <div th:if="${param.logout}" class="alert alert-success">Вы вышли из админки</div>
+
+    <!-- th:action сам добавляет скрытое поле с токеном CSRF -->
+    <form th:action="@{/login}" method="post" class="card card-body">
+        <div class="mb-3">
+            <label for="username" class="form-label">Логин</label>
+            <input id="username" name="username" class="form-control" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Пароль</label>
+            <input id="password" name="password" type="password" class="form-control"
+                   autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Войти</button>
+    </form>
+</main>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -3,10 +3,12 @@ package com.example.cinerec.controller;
 import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.security.SecurityConfig;
 import com.example.cinerec.service.RecommendationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Форма подбора: без выбора — подсказка, с выбором — результаты, выбор остаётся в форме. */
 @WebMvcTest(RecommendationController.class)
+@Import(SecurityConfig.class)
 class RecommendationControllerTest {
 
     @Autowired

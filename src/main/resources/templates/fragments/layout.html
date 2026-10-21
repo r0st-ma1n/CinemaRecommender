@@ -40,6 +40,11 @@
         <li class="nav-item">
             <a class="nav-link" th:classappend="${section == 'moods'} ? 'active'" th:href="@{/admin/moods}">Настроения</a>
         </li>
+        <li class="nav-item ms-auto">
+            <form th:action="@{/logout}" method="post">
+                <button type="submit" class="btn btn-link nav-link">Выйти</button>
+            </form>
+        </li>
     </ul>
     <div th:if="${message}" class="alert alert-success" th:text="${message}">Сохранено</div>
     <div th:if="${error}" class="alert alert-danger" th:text="${error}">Ошибка</div>

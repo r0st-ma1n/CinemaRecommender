@@ -9,12 +9,14 @@ import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.security.SecurityConfig;
 import com.example.cinerec.service.MovieService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,12 +25,14 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Админка фильмов через API: валидация, сохранение, удаление, подсказка настроений. */
 @WebMvcTest(AdminMovieApiController.class)
-@Import(MovieService.class)
+@Import({MovieService.class, SecurityConfig.class})
+@WithMockUser(roles = "ADMIN")
 class AdminMovieApiControllerTest {
 
     @Autowired
@@ -47,7 +51,7 @@ class AdminMovieApiControllerTest {
 
     @Test
     void invalidMovieGives400WithMessageAndNothingIsSaved() throws Exception {
-        mvc.perform(post("/api/admin/movies").contentType(MediaType.APPLICATION_JSON).content("""
+        mvc.perform(post("/api/admin/movies").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"title": "Фильм", "year": 2020, "description": "Описание", "rating": 7,
                          "typeId": 1, "genreIds": [], "moodIds": [3]}
                         """))
@@ -77,7 +81,7 @@ class AdminMovieApiControllerTest {
             return movie;
         });
 
-        mvc.perform(post("/api/admin/movies").contentType(MediaType.APPLICATION_JSON).content("""
+        mvc.perform(post("/api/admin/movies").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
                         {"title": "  Новый фильм  ", "year": 2021, "description": "Описание", "posterUrl": "",
                          "rating": 7.5, "typeId": 1, "genreIds": [2], "moodIds": [3]}
                         """))
@@ -92,7 +96,7 @@ class AdminMovieApiControllerTest {
     void deletingUnknownMovieGives404() throws Exception {
         when(movieRepository.findById(999L)).thenReturn(Optional.empty());
 
-        mvc.perform(delete("/api/admin/movies/999"))
+        mvc.perform(delete("/api/admin/movies/999").with(csrf()))
                 .andExpect(status().isNotFound());
 
         verify(movieRepository, never()).delete(any());
@@ -100,7 +104,7 @@ class AdminMovieApiControllerTest {
 
     @Test
     void moodSuggestionNeedsDescription() throws Exception {
-        mvc.perform(post("/api/admin/movies/suggest-moods").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/admin/movies/suggest-moods").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"description\": \" \", \"genreIds\": [2]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Чтобы получить подсказку, сначала заполните описание"));

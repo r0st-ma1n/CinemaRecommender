@@ -12,6 +12,16 @@ export const realApi: Api = {
   recommend: (c) => http(`/api/recommend?${criteriaToParams(c)}`),
   sendChat: (request) => http('/api/chat', { method: 'POST', ...json(request) }),
 
+  getAuth: () => http('/api/auth/me'),
+  // Вход обрабатывает formLogin Spring Security, он ждёт обычную форму, а не JSON
+  login: (username, password) =>
+    http('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username, password }),
+    }),
+  logout: () => http('/api/auth/logout', { method: 'POST' }),
+
   createMovie: (input) => http('/api/admin/movies', { method: 'POST', ...json(input) }),
   updateMovie: (id, input) => http(`/api/admin/movies/${id}`, { method: 'PUT', ...json(input) }),
   deleteMovie: (id) => http(`/api/admin/movies/${id}`, { method: 'DELETE' }),

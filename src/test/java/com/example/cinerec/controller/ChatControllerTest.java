@@ -5,10 +5,12 @@ import com.example.cinerec.chat.ChatMovie;
 import com.example.cinerec.chat.ChatReply;
 import com.example.cinerec.chat.ChatService;
 import com.example.cinerec.ml.ChatMoodPredictor;
+import com.example.cinerec.security.SecurityConfig;
 import com.example.cinerec.service.Criteria;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Логика бота подменена заглушкой — её проверяет ChatServiceTest.
  */
 @WebMvcTest(ChatController.class)
+@Import(SecurityConfig.class)
 class ChatControllerTest {
 
     @Autowired

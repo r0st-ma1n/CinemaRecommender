@@ -8,6 +8,7 @@ import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.security.SecurityConfig;
 import com.example.cinerec.service.Criteria;
 import com.example.cinerec.service.MovieService;
 import com.example.cinerec.service.Recommendation;
@@ -30,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Публичный API: формат JSON, 404 с текстом ошибки, разбор условий подбора из адреса. */
 @WebMvcTest(CatalogApiController.class)
-@Import(MovieService.class)
+@Import({MovieService.class, SecurityConfig.class})
 class CatalogApiControllerTest {
 
     @Autowired

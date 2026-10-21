@@ -40,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(properties = {
         "cinerec.model.path=target/no-such-model",
-        "cinerec.chat-model.path=target/no-such-model"})
+        "cinerec.chat-model.path=target/no-such-model",
+        "cinerec.admin.password=test"})
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 @Transactional

@@ -9,12 +9,14 @@ import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.security.SecurityConfig;
 import com.example.cinerec.service.MovieService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,6 +26,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -33,7 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Репозитории подменены заглушками, поэтому база не нужна.
  */
 @WebMvcTest(AdminMovieController.class)
-@Import(MovieService.class)
+@Import({MovieService.class, SecurityConfig.class})
+@WithMockUser(roles = "ADMIN")
 class AdminMovieControllerTest {
 
     @Autowired
@@ -52,7 +56,7 @@ class AdminMovieControllerTest {
 
     @Test
     void invalidFormIsShownAgainWithErrorsAndNothingIsSaved() throws Exception {
-        mvc.perform(post("/admin/movies")
+        mvc.perform(post("/admin/movies").with(csrf())
                         .param("title", " ")
                         .param("year", "1800")
                         .param("rating", "11"))
@@ -76,7 +80,7 @@ class AdminMovieControllerTest {
         when(genreRepository.findAllById(List.of(2L))).thenReturn(List.of(comedy));
         when(moodRepository.findAllById(List.of(3L))).thenReturn(List.of(funny));
 
-        mvc.perform(post("/admin/movies")
+        mvc.perform(post("/admin/movies").with(csrf())
                         .param("title", "  Новый фильм  ")
                         .param("year", "2021")
                         .param("description", "Описание")
@@ -109,7 +113,7 @@ class AdminMovieControllerTest {
 
     @Test
     void moodSuggestionNeedsDescription() throws Exception {
-        mvc.perform(post("/admin/movies/suggest-moods").param("title", "Фильм"))
+        mvc.perform(post("/admin/movies/suggest-moods").with(csrf()).param("title", "Фильм"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("error", "Чтобы получить подсказку, сначала заполните описание"));
 

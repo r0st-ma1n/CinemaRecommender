@@ -26,7 +26,7 @@ describe('Навигация', () => {
 
     await user.click(within(mainNav()).getByRole('link', { name: 'Админка' }));
     expect(router.state.location.pathname).toBe('/admin');
-    expect(screen.getByRole('heading', { level: 1, name: 'Фильмы' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Вход в админку' })).toBeInTheDocument();
   });
 
   it('мобильное меню открывается и закрывается после перехода', async () => {

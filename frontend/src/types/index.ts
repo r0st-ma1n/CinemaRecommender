@@ -87,3 +87,9 @@ export interface MoodSuggestion {
 }
 
 export type DictionaryKind = 'genres' | 'moods';
+
+/** Вошёл ли администратор (GET /api/auth/me). */
+export interface AuthStatus {
+  authenticated: boolean;
+  username: string | null;
+}
