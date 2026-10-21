@@ -101,6 +101,23 @@ Run Configuration → Environment variables: `DB_USERNAME=postgres;DB_PASSWORD=p
   **без Docker эти тесты пропускаются** (в отчёте — Skipped), остальные работают как обычно.
   Рабочая база `cinerec-db` не затрагивается: для тестов создаётся отдельный временный контейнер.
 
+## Новый фронтенд (React)
+
+В папке `frontend/` — новый интерфейс на React 19 + TypeScript, Vite и Tailwind CSS:
+главная, каталог, страница фильма, подбор, чат и админка. Нужен Node.js 20+.
+
+```bash
+cd frontend
+npm install
+npm run dev     # http://localhost:5173
+npm test        # тесты Vitest + React Testing Library
+```
+
+По умолчанию фронтенд работает на встроенных моках (`VITE_API_MODE=mock`, см. `frontend/.env.example`):
+это начальные данные из `V2__data.sql`, а подбор считается по тем же правилам, что на бэкенде, так что
+бэкенд и база не нужны. В режиме `real` запросы `/api/*` уходят на Spring Boot (`localhost:8080`).
+Пока на бэкенде есть только `POST /api/chat`; остальные адреса описаны в `frontend/src/api/realApi.ts`.
+
 ## Структура проекта
 
 ```
