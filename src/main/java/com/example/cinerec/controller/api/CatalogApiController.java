@@ -7,6 +7,8 @@ import com.example.cinerec.repository.MovieTypeRepository;
 import com.example.cinerec.service.Criteria;
 import com.example.cinerec.service.MovieService;
 import com.example.cinerec.service.RecommendationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 /** Публичная часть API для фронтенда на React: каталог, справочники и подбор. */
+@Tag(name = "Каталог")
 @RestController
 @RequestMapping("/api")
 public class CatalogApiController {
@@ -45,33 +48,39 @@ public class CatalogApiController {
         this.recommendationService = recommendationService;
     }
 
+    @Operation(summary = "Все фильмы, сначала с высоким рейтингом")
     @GetMapping("/movies")
     public List<MovieDto> movies() {
         return movieRepository.findAllWithDetailsForCatalog().stream().map(MovieDto::from).toList();
     }
 
+    @Operation(summary = "Один фильм")
     @GetMapping("/movies/{id}")
     public MovieDto movie(@PathVariable Long id) {
         return MovieDto.from(movieService.find(id));
     }
 
     // Порядок как в выпадающих списках на сайте: типы и настроения по id, жанры по алфавиту
+    @Operation(summary = "Типы: фильм, сериал, мультфильм")
     @GetMapping("/types")
     public List<DictionaryItemDto> types() {
         return typeRepository.findAll(Sort.by("id")).stream().map(DictionaryItemDto::from).toList();
     }
 
+    @Operation(summary = "Жанры по алфавиту")
     @GetMapping("/genres")
     public List<DictionaryItemDto> genres() {
         return genreRepository.findAll(Sort.by("name")).stream().map(DictionaryItemDto::from).toList();
     }
 
+    @Operation(summary = "Настроения")
     @GetMapping("/moods")
     public List<DictionaryItemDto> moods() {
         return moodRepository.findAll(Sort.by("id")).stream().map(DictionaryItemDto::from).toList();
     }
 
     /** Списки id приходят через запятую: /api/recommend?moodId=1&genreIds=2,5&typeIds=1 */
+    @Operation(summary = "Подбор: настроение +3, жанр +2, тип +1, первые 10 фильмов")
     @GetMapping("/recommend")
     public List<RecommendationDto> recommend(@RequestParam(required = false) Long moodId,
                                              @RequestParam(required = false) Set<Long> genreIds,

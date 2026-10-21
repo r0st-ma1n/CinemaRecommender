@@ -147,6 +147,17 @@ class DatabaseIntegrationTest {
                 .andExpect(jsonPath("$.context.shownMovieIds.length()").value(5));
     }
 
+    @Test
+    void apiDocsDescribeOnlyApiWithLoginAndProtectedAdmin() throws Exception {
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/movies'].get.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/movies'].post.security[0].session").exists())
+                .andExpect(jsonPath("$.paths['/api/movies'].get.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/recommend']").doesNotExist());
+    }
+
     private int linksOf(Genre genre) {
         return jdbc.queryForObject("select count(*) from movie_genre where genre_id = ?", Integer.class, genre.getId());
     }

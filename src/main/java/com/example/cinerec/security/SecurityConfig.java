@@ -21,7 +21,7 @@ import java.util.Map;
  * Доступ к приложению. Всё открыто, кроме админки: страниц /admin/** и адресов /api/admin/**.
  *
  * Две цепочки фильтров, потому что клиенты разные:
- * - /api/** — фронтенд на React. Вход через POST /api/auth/login, ошибки в JSON (401, 403),
+ * - /api/** (и описание API для Swagger) — фронтенд на React. Вход через POST /api/auth/login, ошибки в JSON (401, 403),
  *   токен CSRF в cookie XSRF-TOKEN, фронтенд возвращает его в заголовке X-XSRF-TOKEN;
  * - всё остальное — страницы Thymeleaf. Обычная форма входа /login, токен CSRF формы подставляют сами.
  */
@@ -38,7 +38,8 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
-        http.securityMatcher("/api/**")
+        // /v3/api-docs Swagger UI загружает при открытии — так у него сразу есть cookie XSRF-TOKEN для входа
+        http.securityMatcher("/api/**", "/v3/api-docs/**")
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().permitAll())

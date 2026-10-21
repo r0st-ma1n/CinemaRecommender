@@ -4,6 +4,8 @@ import com.example.cinerec.chat.ChatContext;
 import com.example.cinerec.chat.ChatReply;
 import com.example.cinerec.chat.ChatService;
 import com.example.cinerec.ml.ChatMoodPredictor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * История переписки и контекст (условия прошлого запроса) хранятся только на странице,
  * в базу ничего не пишется.
  */
+@Tag(name = "Чат")
 @Controller
 public class ChatController {
 
@@ -46,6 +49,7 @@ public class ChatController {
      * Принимает сообщение в JSON и возвращает ответ бота в JSON:
      * {"text": "...", "movies": [{"id": 1, "title": "...", ...}], "context": {...}}.
      */
+    @Operation(summary = "Сообщение чат-боту")
     @PostMapping("/api/chat")
     @ResponseBody
     public ChatReply sendMessage(@RequestBody ChatRequest request) {

@@ -16,7 +16,7 @@
 
 ## Стек
 
-Java 21, Spring Boot 3.5 (Web, Data JPA, Security, Thymeleaf, Validation), PostgreSQL 16, Flyway, Maven,
+Java 21, Spring Boot 3.5 (Web, Data JPA, Security, Thymeleaf, Validation), springdoc-openapi (Swagger), PostgreSQL 16, Flyway, Maven,
 Bootstrap 5, Weka 3.8. Фронтенд: React 19, TypeScript, Vite, Tailwind CSS.
 
 ## Быстрый старт в Docker
@@ -28,7 +28,8 @@ docker compose up --build
 ```
 
 - <http://localhost:3000> — фронтенд на React;
-- <http://localhost:8080> — страницы Thymeleaf и REST API.
+- <http://localhost:8080> — страницы Thymeleaf и REST API;
+- <http://localhost:8080/swagger-ui.html> — документация API (Swagger UI).
 
 Поднимутся три контейнера: PostgreSQL, бэкенд и nginx с фронтендом (он же передаёт запросы `/api` бэкенду).
 Модели Weka обучаются при сборке образа бэкенда, поэтому первая сборка занимает несколько минут.
@@ -141,7 +142,9 @@ npm test        # тесты Vitest + React Testing Library
 
 ## REST API
 
-Ошибки возвращаются как `{"message": "текст для пользователя"}` с кодом 400, 401, 403, 404, 409 или 503.
+Полное описание с примерами запросов — в Swagger UI: <http://localhost:8080/swagger-ui.html>
+(описание в формате OpenAPI — `/v3/api-docs`). Чтобы вызвать адреса админки прямо оттуда,
+сначала выполните `POST /api/auth/login`. Ошибки возвращаются как `{"message": "текст для пользователя"}` с кодом 400, 401, 403, 404, 409 или 503.
 
 | Метод и адрес | Что делает |
 |---|---|

@@ -3,6 +3,7 @@ package com.example.cinerec.controller.api;
 import com.example.cinerec.controller.admin.DictionaryNames;
 import com.example.cinerec.entity.NamedEntity;
 import com.example.cinerec.repository.DictionaryRepository;
+import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -30,6 +31,7 @@ public abstract class DictionaryApiController<T extends NamedEntity> {
         this.label = label;
     }
 
+    @Operation(summary = "Добавить")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DictionaryItemDto create(@RequestBody NameRequest request) {
@@ -42,6 +44,7 @@ public abstract class DictionaryApiController<T extends NamedEntity> {
         return DictionaryItemDto.from(repository.save(item));
     }
 
+    @Operation(summary = "Переименовать")
     @PutMapping("/{id}")
     public DictionaryItemDto rename(@PathVariable Long id, @RequestBody NameRequest request) {
         String name = checkName(request.name());
@@ -54,6 +57,7 @@ public abstract class DictionaryApiController<T extends NamedEntity> {
         return DictionaryItemDto.from(repository.save(item));
     }
 
+    @Operation(summary = "Удалить (связи с фильмами удаляет база)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
