@@ -9,10 +9,12 @@ import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.service.MovieService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Репозитории подменены заглушками, поэтому база не нужна.
  */
 @WebMvcTest(AdminMovieController.class)
+@Import(MovieService.class)
 class AdminMovieControllerTest {
 
     @Autowired

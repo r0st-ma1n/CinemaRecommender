@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "genre")
-public class Genre {
+public class Genre implements NamedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

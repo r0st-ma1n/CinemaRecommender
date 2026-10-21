@@ -24,6 +24,11 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     @Query("select m from Movie m")
     List<Movie> findAllWithDetails();
 
+    // То же в порядке каталога — для REST API, где у фильма отдаются и настроения
+    @EntityGraph(attributePaths = {"type", "genres", "moods"})
+    @Query("select m from Movie m order by m.rating desc, m.title asc")
+    List<Movie> findAllWithDetailsForCatalog();
+
     // Год самого нового фильма — от него чат отсчитывает «новое» и «старое» (null, если фильмов нет)
     @Query("select max(m.year) from Movie m")
     Integer findNewestYear();

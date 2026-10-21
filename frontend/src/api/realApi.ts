@@ -2,10 +2,7 @@ import type { Api } from './types';
 import { http, json } from './http';
 import { criteriaToParams } from '../lib/criteria';
 
-/**
- * HTTP-реализация. На бэкенде сейчас есть только POST /api/chat;
- * остальные адреса — предполагаемый контракт для будущих REST-контроллеров.
- */
+/** HTTP-реализация: запросы к REST API на Spring Boot (пакет controller/api и ChatController). */
 export const realApi: Api = {
   getMovies: () => http('/api/movies'),
   getMovie: (id) => http(`/api/movies/${id}`),

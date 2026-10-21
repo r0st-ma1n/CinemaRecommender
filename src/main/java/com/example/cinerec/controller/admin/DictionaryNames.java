@@ -1,15 +1,15 @@
 package com.example.cinerec.controller.admin;
 
 /** Общая проверка названия жанра или настроения. */
-final class DictionaryNames {
+public final class DictionaryNames {
 
-    static final int MAX_LENGTH = 50;
+    public static final int MAX_LENGTH = 50;
 
     private DictionaryNames() {
     }
 
     /** @return текст ошибки или null, если название подходит */
-    static String check(String name) {
+    public static String check(String name) {
         if (name == null || name.isBlank()) {
             return "Название не может быть пустым";
         }

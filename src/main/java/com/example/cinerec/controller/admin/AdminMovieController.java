@@ -10,18 +10,16 @@ import com.example.cinerec.repository.GenreRepository;
 import com.example.cinerec.repository.MoodRepository;
 import com.example.cinerec.repository.MovieRepository;
 import com.example.cinerec.repository.MovieTypeRepository;
+import com.example.cinerec.service.MovieService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -33,17 +31,20 @@ import java.util.List;
 @RequestMapping("/admin/movies")
 public class AdminMovieController {
 
+    private final MovieService movieService;
     private final MovieRepository movieRepository;
     private final MovieTypeRepository typeRepository;
     private final GenreRepository genreRepository;
     private final MoodRepository moodRepository;
     private final MoodPredictor moodPredictor;
 
-    public AdminMovieController(MovieRepository movieRepository,
+    public AdminMovieController(MovieService movieService,
+                                MovieRepository movieRepository,
                                 MovieTypeRepository typeRepository,
                                 GenreRepository genreRepository,
                                 MoodRepository moodRepository,
                                 MoodPredictor moodPredictor) {
+        this.movieService = movieService;
         this.movieRepository = movieRepository;
         this.typeRepository = typeRepository;
         this.genreRepository = genreRepository;
@@ -68,16 +69,14 @@ public class AdminMovieController {
         if (errors.hasErrors()) {
             return showForm(form, model);
         }
-        Movie movie = new Movie();
-        copyFormToMovie(form, movie);
-        movieRepository.save(movie);
+        Movie movie = movieService.create(form);
         redirect.addFlashAttribute("message", "Фильм «" + movie.getTitle() + "» добавлен");
         return "redirect:/admin/movies";
     }
 
     @GetMapping("/{id}/edit")
     public String editForm(@PathVariable Long id, Model model) {
-        return showForm(MovieForm.fromMovie(findMovie(id)), model);
+        return showForm(MovieForm.fromMovie(movieService.find(id)), model);
     }
 
     @PostMapping("/{id}")
@@ -87,9 +86,7 @@ public class AdminMovieController {
         if (errors.hasErrors()) {
             return showForm(form, model);
         }
-        Movie movie = findMovie(id);
-        copyFormToMovie(form, movie);
-        movieRepository.save(movie);
+        Movie movie = movieService.update(id, form);
         redirect.addFlashAttribute("message", "Фильм «" + movie.getTitle() + "» сохранён");
         return "redirect:/admin/movies";
     }
@@ -133,8 +130,7 @@ public class AdminMovieController {
 
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
-        Movie movie = findMovie(id);
-        movieRepository.delete(movie);
+        Movie movie = movieService.delete(id);
         redirect.addFlashAttribute("message", "Фильм «" + movie.getTitle() + "» удалён");
         return "redirect:/admin/movies";
     }
@@ -147,25 +143,5 @@ public class AdminMovieController {
         model.addAttribute("moods", moodRepository.findAll(Sort.by("id")));
         model.addAttribute("modelAvailable", moodPredictor.isAvailable());
         return "admin/movie-form";
-    }
-
-    /** Перенести данные из формы в сущность; тип, жанры и настроения загружаются по id. */
-    private void copyFormToMovie(MovieForm form, Movie movie) {
-        movie.setTitle(form.getTitle().trim());
-        movie.setYear(form.getYear());
-        movie.setDescription(form.getDescription().trim());
-        // Пустая ссылка на постер хранится как NULL — тогда показывается заглушка
-        String poster = form.getPosterUrl();
-        movie.setPosterUrl(poster == null || poster.isBlank() ? null : poster.trim());
-        movie.setRating(form.getRating());
-        movie.setType(typeRepository.findById(form.getTypeId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нет такого типа")));
-        movie.setGenres(new HashSet<>(genreRepository.findAllById(form.getGenreIds())));
-        movie.setMoods(new HashSet<>(moodRepository.findAllById(form.getMoodIds())));
-    }
-
-    private Movie findMovie(Long id) {
-        return movieRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Фильм не найден"));
     }
 }

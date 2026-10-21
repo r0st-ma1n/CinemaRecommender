@@ -115,8 +115,22 @@ npm test        # тесты Vitest + React Testing Library
 
 По умолчанию фронтенд работает на встроенных моках (`VITE_API_MODE=mock`, см. `frontend/.env.example`):
 это начальные данные из `V2__data.sql`, а подбор считается по тем же правилам, что на бэкенде, так что
-бэкенд и база не нужны. В режиме `real` запросы `/api/*` уходят на Spring Boot (`localhost:8080`).
-Пока на бэкенде есть только `POST /api/chat`; остальные адреса описаны в `frontend/src/api/realApi.ts`.
+бэкенд и база не нужны. В режиме `real` запросы `/api/*` уходят на Spring Boot (`localhost:8080`):
+создайте `frontend/.env.local` со строкой `VITE_API_MODE=real` и запустите бэкенд.
+
+## REST API
+
+Ошибки возвращаются как `{"message": "текст для пользователя"}` с кодом 400, 404, 409 или 503.
+
+| Метод и адрес | Что делает |
+|---|---|
+| `GET /api/movies`, `GET /api/movies/{id}` | каталог (по рейтингу) и один фильм |
+| `GET /api/types`, `/api/genres`, `/api/moods` | справочники |
+| `GET /api/recommend?moodId=1&genreIds=2,5&typeIds=1&yearFrom=1990&yearTo=1999` | подбор, первые 10 |
+| `POST /api/chat` | сообщение чат-боту |
+| `POST /api/admin/movies`, `PUT` и `DELETE /api/admin/movies/{id}` | добавление, изменение, удаление фильма |
+| `POST /api/admin/movies/suggest-moods` | подсказка настроений по описанию и жанрам |
+| `POST /api/admin/genres`, `PUT` и `DELETE /api/admin/genres/{id}` | жанры (так же `/api/admin/moods`) |
 
 ## Структура проекта
 
@@ -124,10 +138,11 @@ npm test        # тесты Vitest + React Testing Library
 src/main/java/com/example/cinerec/
 ├── entity/          сущности: Movie, MovieType, Genre, Mood
 ├── repository/      репозитории Spring Data JPA
-├── service/         RecommendationService — подбор по баллам
+├── service/         RecommendationService — подбор по баллам; MovieService — сохранение фильмов
 ├── chat/            ChatService — логика бота; ChatReply, ChatMovie — ответ бота
 ├── controller/      каталог, страница фильма, форма подбора, чат (ChatController)
-│   └── admin/       админка: фильмы, жанры, настроения
+│   ├── admin/       админка: фильмы, жанры, настроения
+│   └── api/         REST API для фронтенда на React: контроллеры, DTO, обработка ошибок
 ├── form/            MovieForm — данные формы фильма с проверками
 └── ml/              модели настроений:
                      MoodModel (общие настройки), TrainModels (обучение обеих моделей),

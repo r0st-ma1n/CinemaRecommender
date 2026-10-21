@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "mood")
-public class Mood {
+public class Mood implements NamedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
